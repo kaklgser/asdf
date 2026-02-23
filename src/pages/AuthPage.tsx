@@ -111,13 +111,24 @@ export default function AuthPage() {
     }
 
     setLoading(true);
-    const { error, isNewUser } = await verifyOtp(phone, code);
+    const { error, isNewUser, role } = await verifyOtp(phone, code);
     setLoading(false);
 
     if (error) {
       showToast(error, 'error');
       setOtp(['', '', '', '', '', '']);
       otpRefs.current[0]?.focus();
+      return;
+    }
+
+    if (role === 'admin') {
+      showToast('Welcome, Admin!');
+      navigate('/admin', { replace: true });
+      return;
+    }
+    if (role === 'chef') {
+      showToast('Welcome, Chef!');
+      navigate('/chef', { replace: true });
       return;
     }
 

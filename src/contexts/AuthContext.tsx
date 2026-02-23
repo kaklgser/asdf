@@ -18,7 +18,7 @@ interface AuthContextType {
   profile: Profile | null;
   loading: boolean;
   sendOtp: (phone: string) => Promise<{ error: string | null }>;
-  verifyOtp: (phone: string, token: string) => Promise<{ error: string | null; isNewUser: boolean }>;
+  verifyOtp: (phone: string, token: string) => Promise<{ error: string | null; isNewUser: boolean; role: string | null }>;
   completeProfile: (fullName: string, email: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -84,15 +84,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       token,
       type: 'sms',
     });
-    if (error) return { error: error.message, isNewUser: false };
+    if (error) return { error: error.message, isNewUser: false, role: null };
 
     if (data.user) {
       const p = await fetchProfile(data.user.id);
-      const isNewUser = !p || !p.full_name;
-      return { error: null, isNewUser };
+      const role = p?.role || null;
+      const isNewUser = !p || (!p.full_name && role === 'customer');
+      return { error: null, isNewUser, role };
     }
 
-    return { error: 'Verification failed', isNewUser: false };
+    return { error: 'Verification failed', isNewUser: false, role: null };
   };
 
   const completeProfile = async (fullName: string, email: string) => {
