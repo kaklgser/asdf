@@ -164,6 +164,20 @@ export default function CustomizationModal({ item, onClose, onConfirm }: Props) 
             </button>
           </div>
 
+          {customizationsTotal > 0 && (
+            <div className="flex items-center justify-center gap-2 text-[12px] text-brand-text-dim">
+              <span>Base {'\u20B9'}{item.price}</span>
+              <span className="text-brand-text-dim/50">+</span>
+              <span>Add-ons {'\u20B9'}{customizationsTotal}</span>
+              {quantity > 1 && (
+                <>
+                  <span className="text-brand-text-dim/50">x</span>
+                  <span>{quantity}</span>
+                </>
+              )}
+            </div>
+          )}
+
           <button
             onClick={() => onConfirm(item, quantity, getSelectedCustomizations())}
             className="btn-primary w-full text-center flex items-center justify-center gap-2"

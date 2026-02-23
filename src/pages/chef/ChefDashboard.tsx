@@ -323,7 +323,7 @@ export default function ChefDashboard() {
                     {order.payment_status === 'paid' ? <BadgeCheck size={12} /> : <Wallet size={12} />}
                     {order.payment_status === 'paid'
                       ? 'Paid'
-                      : order.order_type === 'pickup' ? 'Pay at Counter' : 'COD'}
+                      : order.order_type === 'pickup' ? 'Cash' : 'COD'}
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg font-bold bg-emerald-500/10 text-emerald-400">

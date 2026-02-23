@@ -278,7 +278,7 @@ export default function OrderSuccessPage() {
               <span>Payment</span>
               <span className="capitalize text-white">
                 {order.payment_method === 'cod'
-                  ? (isPickup ? 'Pay at Counter' : 'Cash on Delivery')
+                  ? (isPickup ? 'Cash (Pay at Shop)' : 'Cash on Delivery')
                   : order.payment_method.toUpperCase()}
               </span>
             </div>
@@ -472,7 +472,7 @@ function PaymentInstructionCard({ order, isPickup }: { order: Order; isPickup: b
         </div>
         <div>
           <h4 className="text-[13px] font-bold text-white">
-            {isPickup ? 'Pay at Counter' : 'Cash on Delivery'}
+            {isPickup ? 'Pay at Shop' : 'Cash on Delivery'}
           </h4>
           <p className="text-[11px] text-brand-text-dim">
             {isPickup ? 'Show this order ID and pay at the counter' : 'Pay the delivery partner when your order arrives'}

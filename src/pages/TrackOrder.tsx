@@ -421,7 +421,7 @@ export default function TrackOrderPage() {
                       {order.payment_status === 'paid'
                         ? <><BadgeCheck size={14} /> Paid</>
                         : <><Wallet size={14} /> {order.payment_method === 'cod'
-                            ? (order.order_type === 'pickup' ? 'Pay at Counter' : 'Cash on Delivery')
+                            ? (order.order_type === 'pickup' ? 'Cash (Pay at Shop)' : 'Cash on Delivery')
                             : order.payment_method.toUpperCase()
                           }</>
                       }
