@@ -57,18 +57,11 @@ export default function AuthPage() {
     setLoading(true);
 
     if (TEST_NUMBERS.includes(digits)) {
-      const { error, role } = await signInDirect(digits);
+      const { error } = await signInDirect(digits);
       setLoading(false);
       if (error) {
         showToast(error, 'error');
         return;
-      }
-      if (role === 'admin') {
-        showToast('Welcome, Admin!');
-        navigate('/admin', { replace: true });
-      } else if (role === 'chef') {
-        showToast('Welcome, Chef!');
-        navigate('/chef', { replace: true });
       }
       return;
     }

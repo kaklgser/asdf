@@ -55,7 +55,6 @@ export default function AdminLogin() {
         setError('Access denied. Admin account required.');
         return;
       }
-      navigate('/admin', { replace: true });
       return;
     }
 

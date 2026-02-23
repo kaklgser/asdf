@@ -58,7 +58,6 @@ export default function ChefLogin() {
         setError('Access denied. Chef account required.');
         return;
       }
-      navigate('/chef', { replace: true });
       return;
     }
 
