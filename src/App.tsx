@@ -49,6 +49,13 @@ function ChefRoute({ children }: { children: ReactNode }) {
 }
 
 function CustomerLayout({ children }: { children: ReactNode }) {
+  const { profile, loading } = useAuth();
+
+  if (!loading && profile) {
+    if (profile.role === 'chef') return <Navigate to="/chef" replace />;
+    if (profile.role === 'admin') return <Navigate to="/admin" replace />;
+  }
+
   return (
     <>
       <Header />

@@ -11,7 +11,8 @@ export default function Header() {
   const navigate = useNavigate();
 
   const isAdmin = location.pathname.startsWith('/admin');
-  if (isAdmin) return null;
+  const isChef = location.pathname.startsWith('/chef');
+  if (isAdmin || isChef) return null;
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Eye, EyeOff, ArrowRight, Phone } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
@@ -11,12 +11,24 @@ export default function AuthPage() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, profile } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
 
   const from = (location.state as { from?: string })?.from || '/';
+
+  useEffect(() => {
+    if (profile) {
+      if (profile.role === 'chef') {
+        navigate('/chef', { replace: true });
+      } else if (profile.role === 'admin') {
+        navigate('/admin', { replace: true });
+      } else {
+        navigate(from, { replace: true });
+      }
+    }
+  }, [profile, navigate, from]);
 
   function handlePhoneChange(value: string) {
     const digits = value.replace(/\D/g, '').slice(0, 10);
@@ -63,7 +75,6 @@ export default function AuthPage() {
     }
 
     setLoading(false);
-    navigate(from, { replace: true });
   }
 
   return (

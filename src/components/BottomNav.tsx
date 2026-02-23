@@ -14,7 +14,8 @@ export default function BottomNav() {
   const { user } = useAuth();
 
   const isAdmin = location.pathname.startsWith('/admin');
-  if (isAdmin) return null;
+  const isChef = location.pathname.startsWith('/chef');
+  if (isAdmin || isChef) return null;
 
   function getProfileTo() {
     return user ? '/my-orders' : '/auth';

@@ -8,6 +8,7 @@ export default function FloatingCart() {
 
   const hidden = location.pathname === '/cart'
     || location.pathname.startsWith('/admin')
+    || location.pathname.startsWith('/chef')
     || location.pathname.startsWith('/order-success')
     || itemCount === 0;
 
