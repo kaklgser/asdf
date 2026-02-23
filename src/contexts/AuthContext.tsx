@@ -20,6 +20,7 @@ interface AuthContextType {
   sendOtp: (phone: string) => Promise<{ error: string | null }>;
   verifyOtp: (phone: string, token: string) => Promise<{ error: string | null; isNewUser: boolean; role: string | null }>;
   completeProfile: (fullName: string, email: string) => Promise<{ error: string | null }>;
+  signInDirect: (phone: string) => Promise<{ error: string | null; role: string | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -114,6 +115,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: null };
   };
 
+  const TEST_ACCOUNTS: Record<string, { email: string; password: string }> = {
+    '9999900000': { email: '9999900000@supremewaffle.app', password: 'admin123' },
+    '9999900001': { email: '9999900001@supremewaffle.app', password: 'chef123' },
+  };
+
+  const signInDirect = async (phone: string): Promise<{ error: string | null; role: string | null }> => {
+    const digits = phone.replace(/\D/g, '');
+    const account = TEST_ACCOUNTS[digits];
+    if (!account) return { error: 'Direct login not available for this number', role: null };
+
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: account.email,
+      password: account.password,
+    });
+
+    if (error) return { error: error.message, role: null };
+
+    if (data.user) {
+      const p = await fetchProfile(data.user.id);
+      return { error: null, role: p?.role || null };
+    }
+
+    return { error: 'Login failed', role: null };
+  };
+
   const signOut = async () => {
     await supabase.auth.signOut();
     setProfile(null);
@@ -124,7 +150,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, profile, loading, sendOtp, verifyOtp, completeProfile, signOut, refreshProfile }}>
+    <AuthContext.Provider value={{ user, session, profile, loading, sendOtp, verifyOtp, completeProfile, signInDirect, signOut, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );

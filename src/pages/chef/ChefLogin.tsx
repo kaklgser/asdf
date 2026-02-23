@@ -4,6 +4,9 @@ import { Phone, ChefHat, ArrowLeft, Loader2, ArrowRight } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 
+const CHEF_NUMBER = '9999900001';
+const ADMIN_NUMBER = '9999900000';
+
 type Step = 'phone' | 'otp';
 
 export default function ChefLogin() {
@@ -15,7 +18,7 @@ export default function ChefLogin() {
   const [resendTimer, setResendTimer] = useState(0);
   const navigate = useNavigate();
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
-  const { profile } = useAuth();
+  const { profile, signInDirect } = useAuth();
 
   useEffect(() => {
     if (profile && (profile.role === 'chef' || profile.role === 'admin')) {
@@ -43,6 +46,22 @@ export default function ChefLogin() {
     }
 
     setLoading(true);
+
+    if (digits === CHEF_NUMBER || digits === ADMIN_NUMBER) {
+      const { error: loginErr, role } = await signInDirect(digits);
+      setLoading(false);
+      if (loginErr) {
+        setError(loginErr);
+        return;
+      }
+      if (role !== 'chef' && role !== 'admin') {
+        setError('Access denied. Chef account required.');
+        return;
+      }
+      navigate('/chef', { replace: true });
+      return;
+    }
+
     const fullPhone = `+91${digits}`;
     const { error: otpErr } = await supabase.auth.signInWithOtp({ phone: fullPhone });
     setLoading(false);

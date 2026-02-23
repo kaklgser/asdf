@@ -4,6 +4,8 @@ import { Phone, Shield, ArrowLeft, Loader2, ArrowRight } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 
+const ADMIN_NUMBER = '9999900000';
+
 type Step = 'phone' | 'otp';
 
 export default function AdminLogin() {
@@ -15,7 +17,7 @@ export default function AdminLogin() {
   const [resendTimer, setResendTimer] = useState(0);
   const navigate = useNavigate();
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
-  const { profile } = useAuth();
+  const { profile, signInDirect } = useAuth();
 
   useEffect(() => {
     if (profile?.role === 'admin') navigate('/admin', { replace: true });
@@ -41,6 +43,22 @@ export default function AdminLogin() {
     }
 
     setLoading(true);
+
+    if (digits === ADMIN_NUMBER) {
+      const { error: loginErr, role } = await signInDirect(digits);
+      setLoading(false);
+      if (loginErr) {
+        setError(loginErr);
+        return;
+      }
+      if (role !== 'admin') {
+        setError('Access denied. Admin account required.');
+        return;
+      }
+      navigate('/admin', { replace: true });
+      return;
+    }
+
     const fullPhone = `+91${digits}`;
     const { error: otpErr } = await supabase.auth.signInWithOtp({ phone: fullPhone });
     setLoading(false);
