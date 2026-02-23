@@ -18,12 +18,12 @@ export default function BottomNav() {
   if (isAdmin || isChef) return null;
 
   function getProfileTo() {
-    return user ? '/my-orders' : '/auth';
+    return user ? '/profile' : '/auth';
   }
 
   function isActive(to: string) {
     if (to === '/') return location.pathname === '/';
-    if (to === '/auth') return location.pathname === '/auth' || location.pathname === '/my-orders';
+    if (to === '/auth') return location.pathname === '/auth' || location.pathname === '/profile';
     return location.pathname.startsWith(to);
   }
 

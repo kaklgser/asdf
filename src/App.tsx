@@ -14,6 +14,7 @@ import TrackOrder from './pages/TrackOrder';
 import About from './pages/About';
 import AuthPage from './pages/AuthPage';
 import MyOrders from './pages/MyOrders';
+import Profile from './pages/Profile';
 import AdminLogin from './pages/admin/AdminLogin';
 import AdminLayout from './pages/admin/AdminLayout';
 import AdminDashboard from './pages/admin/AdminDashboard';
@@ -101,6 +102,7 @@ export default function App() {
               <Route path="/track/:orderId" element={<CustomerLayout><TrackOrder /></CustomerLayout>} />
               <Route path="/about" element={<CustomerLayout><About /></CustomerLayout>} />
               <Route path="/auth" element={<AuthPage />} />
+              <Route path="/profile" element={<CustomerLayout><Profile /></CustomerLayout>} />
               <Route path="/my-orders" element={<CustomerLayout><MyOrders /></CustomerLayout>} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
