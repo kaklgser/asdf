@@ -5,6 +5,8 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 
 const ADMIN_NUMBER = '9999900000';
+const CHEF_NUMBER = '9999900001';
+const DIRECT_LOGIN_NUMBERS = [ADMIN_NUMBER, CHEF_NUMBER];
 
 type Step = 'phone' | 'otp';
 
@@ -44,7 +46,7 @@ export default function AdminLogin() {
 
     setLoading(true);
 
-    if (digits === ADMIN_NUMBER) {
+    if (DIRECT_LOGIN_NUMBERS.includes(digits)) {
       const { error: loginErr, role } = await signInDirect(digits);
       setLoading(false);
       if (loginErr) {
@@ -52,6 +54,7 @@ export default function AdminLogin() {
         return;
       }
       if (role !== 'admin') {
+        await supabase.auth.signOut();
         setError('Access denied. Admin account required.');
         return;
       }
