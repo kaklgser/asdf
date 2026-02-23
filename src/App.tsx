@@ -26,16 +26,25 @@ import ChefLogin from './pages/chef/ChefLogin';
 import ChefDashboard from './pages/chef/ChefDashboard';
 import type { ReactNode } from 'react';
 
-function ProtectedRoute({ children, redirectTo = '/admin/login' }: { children: ReactNode; redirectTo?: string }) {
-  const { user, loading } = useAuth();
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-brand-bg">
-        <div className="w-8 h-8 border-4 border-brand-gold border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
-  if (!user) return <Navigate to={redirectTo} replace />;
+function LoadingSpinner() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-brand-bg">
+      <div className="w-8 h-8 border-4 border-brand-gold border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+}
+
+function AdminRoute({ children }: { children: ReactNode }) {
+  const { user, profile, loading } = useAuth();
+  if (loading) return <LoadingSpinner />;
+  if (!user || !profile || profile.role !== 'admin') return <Navigate to="/admin/login" replace />;
+  return <>{children}</>;
+}
+
+function ChefRoute({ children }: { children: ReactNode }) {
+  const { user, profile, loading } = useAuth();
+  if (loading) return <LoadingSpinner />;
+  if (!user || !profile || (profile.role !== 'chef' && profile.role !== 'admin')) return <Navigate to="/chef/login" replace />;
   return <>{children}</>;
 }
 
@@ -59,14 +68,14 @@ export default function App() {
           <ToastProvider>
             <Routes>
               <Route path="/chef/login" element={<ChefLogin />} />
-              <Route path="/chef" element={<ProtectedRoute redirectTo="/chef/login"><ChefDashboard /></ProtectedRoute>} />
+              <Route path="/chef" element={<ChefRoute><ChefDashboard /></ChefRoute>} />
               <Route path="/admin/login" element={<AdminLogin />} />
               <Route
                 path="/admin/*"
                 element={
-                  <ProtectedRoute>
+                  <AdminRoute>
                     <AdminLayout />
-                  </ProtectedRoute>
+                  </AdminRoute>
                 }
               >
                 <Route index element={<AdminDashboard />} />

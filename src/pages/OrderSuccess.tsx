@@ -1,16 +1,17 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { CheckCircle, Clock, Copy, RotateCcw, Store, Truck } from 'lucide-react';
+import { CheckCircle, Clock, Copy, RotateCcw, Store, Truck, ChefHat, Users, Bell } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { Order } from '../types';
 import { useToast } from '../components/Toast';
-import { playOrderSound } from '../lib/sounds';
+import { playOrderSound, playOrderCompleteSound } from '../lib/sounds';
 
 export default function OrderSuccessPage() {
   const { orderId } = useParams<{ orderId: string }>();
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const { showToast } = useToast();
+  const prevStatusRef = useRef<string | null>(null);
 
   useEffect(() => {
     playOrderSound();
@@ -23,6 +24,16 @@ export default function OrderSuccessPage() {
   useEffect(() => {
     if (!order) return;
 
+    if (prevStatusRef.current && prevStatusRef.current !== order.status) {
+      if (order.status === 'preparing') {
+        showToast('Chef accepted your order!');
+      } else if (order.status === 'packed') {
+        playOrderCompleteSound();
+        showToast('Your order is ready!');
+      }
+    }
+    prevStatusRef.current = order.status;
+
     const channel = supabase
       .channel(`order-${order.order_id}`)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders', filter: `order_id=eq.${order.order_id}` }, (payload) => {
@@ -33,7 +44,7 @@ export default function OrderSuccessPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [order?.order_id]);
+  }, [order?.order_id, order?.status]);
 
   async function loadOrder() {
     if (!orderId) return;
@@ -75,22 +86,24 @@ export default function OrderSuccessPage() {
     );
   }
 
-  const isConfirmed = order.status !== 'pending' && order.status !== 'expired' && order.status !== 'cancelled';
   const isExpired = order.status === 'expired';
   const isPending = order.status === 'pending';
   const isPickup = order.order_type === 'pickup';
   const isPreparing = order.status === 'preparing';
   const isReady = order.status === 'packed';
+  const isDelivered = order.status === 'delivered';
+  const isConfirmed = order.status !== 'pending' && order.status !== 'expired' && order.status !== 'cancelled';
 
   return (
     <div className="min-h-[60vh] flex items-center justify-center section-padding py-12 bg-brand-bg">
       <div className="max-w-md w-full text-center animate-fade-in">
+
         {isReady && (
           <>
             <div className="w-20 h-20 bg-emerald-500/10 border border-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-6 animate-scale-in">
-              <CheckCircle size={40} className="text-emerald-400" />
+              <Bell size={40} className="text-emerald-400 animate-bounce" />
             </div>
-            <h1 className="text-2xl font-extrabold tracking-tight text-white mb-2">Order Ready!</h1>
+            <h1 className="text-2xl font-extrabold tracking-tight text-white mb-2">Your Order is Complete!</h1>
             <p className="text-brand-text-muted mb-8">
               Come and pick up your order at the counter.
             </p>
@@ -100,16 +113,38 @@ export default function OrderSuccessPage() {
         {isPreparing && (
           <>
             <div className="w-20 h-20 bg-amber-500/10 border border-amber-500/20 rounded-full flex items-center justify-center mx-auto mb-6 animate-scale-in">
-              <Clock size={40} className="text-amber-400 animate-pulse" />
+              <ChefHat size={40} className="text-amber-400 animate-pulse" />
             </div>
-            <h1 className="text-2xl font-extrabold tracking-tight text-white mb-2">Preparing Your Order!</h1>
+            <h1 className="text-2xl font-extrabold tracking-tight text-white mb-2">Your Order is Being Prepared!</h1>
             <p className="text-brand-text-muted mb-8">
-              Our chef is making your order fresh. {order.estimated_minutes ? `Wait about ${order.estimated_minutes} minutes.` : ''}
+              Our chef is making your order fresh. {order.estimated_minutes ? `Please wait about ${order.estimated_minutes} minutes.` : ''}
             </p>
           </>
         )}
 
-        {isConfirmed && !isPreparing && !isReady && (
+        {isPending && (
+          <>
+            <div className="w-20 h-20 bg-orange-500/10 border border-orange-500/20 rounded-full flex items-center justify-center mx-auto mb-6 animate-scale-in">
+              <Users size={40} className="text-orange-400" />
+            </div>
+            <h1 className="text-2xl font-extrabold tracking-tight text-white mb-2">Order Placed!</h1>
+            <p className="text-brand-text-muted mb-8">Your order is in queue. Waiting for chef to accept.</p>
+          </>
+        )}
+
+        {isDelivered && (
+          <>
+            <div className="w-20 h-20 bg-emerald-500/10 border border-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-6 animate-scale-in">
+              <CheckCircle size={40} className="text-emerald-400" />
+            </div>
+            <h1 className="text-2xl font-extrabold tracking-tight text-white mb-2">
+              {isPickup ? 'Order Picked Up!' : 'Order Delivered!'}
+            </h1>
+            <p className="text-brand-text-muted mb-8">Enjoy your waffles!</p>
+          </>
+        )}
+
+        {isConfirmed && !isPreparing && !isReady && !isDelivered && (
           <>
             <div className="w-20 h-20 bg-emerald-500/10 border border-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-6 animate-scale-in">
               <CheckCircle size={40} className="text-emerald-400" />
@@ -120,16 +155,6 @@ export default function OrderSuccessPage() {
                 ? 'Your waffles are being prepared. We will notify you when ready.'
                 : 'Your waffles are being prepared and will be delivered soon.'}
             </p>
-          </>
-        )}
-
-        {isPending && (
-          <>
-            <div className="w-20 h-20 bg-orange-500/10 border border-orange-500/20 rounded-full flex items-center justify-center mx-auto mb-6 animate-scale-in">
-              <Clock size={40} className="text-orange-400" />
-            </div>
-            <h1 className="text-2xl font-extrabold tracking-tight text-white mb-2">Order Placed!</h1>
-            <p className="text-brand-text-muted mb-8">Your order is in queue. Waiting for chef to accept.</p>
           </>
         )}
 
@@ -174,24 +199,25 @@ export default function OrderSuccessPage() {
 
           {isPending && (
             <div className="mt-4 flex items-center justify-center gap-2 bg-orange-500/10 rounded-2xl px-4 py-3 border border-orange-500/20">
-              <Clock size={16} className="text-orange-400" />
+              <Users size={16} className="text-orange-400" />
               <span className="text-[14px] font-bold text-orange-400">In Queue - Waiting for chef</span>
             </div>
           )}
 
           {isPreparing && order.estimated_minutes && (
             <div className="mt-4 flex items-center justify-center gap-2 bg-amber-500/10 rounded-2xl px-4 py-3 border border-amber-500/20">
-              <Clock size={16} className="text-amber-400" />
+              <ChefHat size={16} className="text-amber-400" />
               <span className="text-[14px] font-bold tabular-nums text-amber-400">
-                ~{order.estimated_minutes} min preparation time
+                Preparing - ~{order.estimated_minutes} min
               </span>
             </div>
           )}
 
           {isReady && (
             <div className="mt-4 bg-emerald-500/10 rounded-2xl px-4 py-3 border border-emerald-500/20">
-              <p className="text-[14px] text-emerald-400 font-bold">
-                Your order is ready! Come to the counter to pick it up.
+              <p className="text-[14px] text-emerald-400 font-bold flex items-center justify-center gap-2">
+                <Bell size={16} />
+                Your order is complete! Pick it up now.
               </p>
             </div>
           )}
@@ -212,7 +238,7 @@ export default function OrderSuccessPage() {
             </div>
           )}
 
-          {!isPickup && isConfirmed && !isPreparing && !isReady && (
+          {!isPickup && isConfirmed && !isPreparing && !isReady && !isDelivered && (
             <div className="mt-4 bg-sky-500/10 rounded-2xl px-4 py-3 border border-sky-500/20">
               <p className="text-[14px] text-sky-400 font-semibold">
                 {order.status === 'out_for_delivery'

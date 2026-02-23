@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Search, Phone, MessageCircle, ArrowLeft, Package, Bell, PartyPopper, Clock, Truck } from 'lucide-react';
+import { Search, Phone, MessageCircle, ArrowLeft, Package, Bell, PartyPopper, Clock, Truck, ChefHat, Users } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { playOrderCompleteSound } from '../lib/sounds';
 import type { Order, OrderItem } from '../types';
 import OrderTimeline from '../components/OrderTimeline';
 
@@ -78,6 +79,8 @@ export default function TrackOrderPage() {
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
   const [showReadyBanner, setShowReadyBanner] = useState(false);
+  const [queueAhead, setQueueAhead] = useState(0);
+  const prevStatusRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (paramOrderId) {
@@ -91,6 +94,17 @@ export default function TrackOrderPage() {
     if (order.order_type === 'pickup' && order.status === 'packed') {
       setShowReadyBanner(true);
     }
+
+    if (order.status === 'pending') {
+      loadQueuePosition();
+    }
+
+    if (prevStatusRef.current && prevStatusRef.current !== order.status) {
+      if (order.status === 'packed') {
+        playOrderCompleteSound();
+      }
+    }
+    prevStatusRef.current = order.status;
 
     const channel = supabase
       .channel(`track-${order.order_id}`)
@@ -106,7 +120,17 @@ export default function TrackOrderPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [order?.order_id]);
+  }, [order?.order_id, order?.status]);
+
+  async function loadQueuePosition() {
+    if (!order) return;
+    const { count } = await supabase
+      .from('orders')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'pending')
+      .lt('placed_at', order.placed_at);
+    setQueueAhead(count || 0);
+  }
 
   async function fetchOrder(id: string) {
     setLoading(true);
@@ -146,7 +170,6 @@ export default function TrackOrderPage() {
   return (
     <div className="min-h-screen bg-brand-bg">
       <div className="section-padding py-10">
-        {/* Back link */}
         <Link
           to="/"
           className="group mb-8 inline-flex items-center gap-2 text-[14px] font-semibold text-brand-text-dim transition-colors hover:text-brand-gold"
@@ -155,12 +178,10 @@ export default function TrackOrderPage() {
           Back to Home
         </Link>
 
-        {/* Page heading */}
         <h1 className="mb-8 text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
           Track Your Order
         </h1>
 
-        {/* Search bar */}
         <form onSubmit={handleSearch} className="mb-10 flex max-w-lg gap-3">
           <div className="relative flex-1">
             <Search
@@ -181,7 +202,6 @@ export default function TrackOrderPage() {
           </button>
         </form>
 
-        {/* Loading skeleton */}
         {loading && (
           <div className="max-w-lg animate-pulse space-y-4">
             <div className="h-8 w-36 rounded-lg bg-white/[0.06]" />
@@ -189,7 +209,6 @@ export default function TrackOrderPage() {
           </div>
         )}
 
-        {/* Not found state */}
         {!loading && searched && !order && (
           <div className="max-w-lg py-20 text-center">
             <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-brand-surface">
@@ -202,11 +221,9 @@ export default function TrackOrderPage() {
           </div>
         )}
 
-        {/* Order details */}
         {order && (
           <div className="max-w-lg space-y-6 animate-fade-in">
 
-            {/* Ready for Pickup banner */}
             {showReadyBanner && isReadyForPickup && (
               <div className="relative overflow-hidden rounded-2xl bg-emerald-500 p-6 text-center text-white shadow-elevated animate-scale-in backdrop-blur">
                 <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(255,255,255,0.12),transparent)]" />
@@ -226,41 +243,50 @@ export default function TrackOrderPage() {
               </div>
             )}
 
-            {/* In Queue banner */}
             {isInQueue && (
               <div className="relative overflow-hidden rounded-2xl bg-orange-500 p-6 text-center text-white shadow-elevated animate-scale-in backdrop-blur">
                 <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(255,255,255,0.12),transparent)]" />
                 <div className="relative">
                   <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-white/20 backdrop-blur-sm">
-                    <Clock size={32} />
+                    <Users size={32} />
                   </div>
-                  <h2 className="mb-2 text-2xl font-black">In Queue</h2>
-                  <p className="text-[14px] text-orange-100">
-                    Your order is waiting for the chef to accept. Hang tight!
+                  <h2 className="mb-2 text-2xl font-black">Your Order is in Queue</h2>
+                  <p className="text-[14px] text-orange-100 mb-3">
+                    Please wait while our chef accepts your order
                   </p>
+                  {queueAhead > 0 && (
+                    <div className="inline-flex items-center gap-2 rounded-full bg-white/20 px-4 py-2 text-[14px] font-semibold backdrop-blur-sm">
+                      <Clock size={14} />
+                      {queueAhead} order{queueAhead !== 1 ? 's' : ''} ahead of you
+                    </div>
+                  )}
+                  {queueAhead === 0 && (
+                    <div className="inline-flex items-center gap-2 rounded-full bg-white/20 px-4 py-2 text-[14px] font-semibold backdrop-blur-sm">
+                      <Clock size={14} />
+                      You're next in line!
+                    </div>
+                  )}
                 </div>
               </div>
             )}
 
-            {/* Preparing banner */}
             {isPreparing && (
               <div className="relative overflow-hidden rounded-2xl bg-amber-500 p-6 text-center text-white shadow-elevated animate-scale-in backdrop-blur">
                 <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(255,255,255,0.12),transparent)]" />
                 <div className="relative">
                   <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-white/20 backdrop-blur-sm">
-                    <Clock size={32} className="animate-pulse" />
+                    <ChefHat size={32} className="animate-pulse" />
                   </div>
-                  <h2 className="mb-2 text-2xl font-black">Being Prepared</h2>
+                  <h2 className="mb-2 text-2xl font-black">Your Order is Being Prepared</h2>
                   <p className="text-[14px] text-amber-100">
                     {order.estimated_minutes
-                      ? `Your food will be ready in about ${order.estimated_minutes} minutes`
+                      ? `Please wait, your food will be ready in about ${order.estimated_minutes} minutes`
                       : 'Your food is being freshly prepared'}
                   </p>
                 </div>
               </div>
             )}
 
-            {/* Out for Delivery banner */}
             {order.order_type === 'delivery' && order.status === 'out_for_delivery' && (
               <div className="relative overflow-hidden rounded-2xl bg-sky-500 p-6 text-center text-white shadow-elevated animate-scale-in backdrop-blur">
                 <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(255,255,255,0.12),transparent)]" />
@@ -276,7 +302,6 @@ export default function TrackOrderPage() {
               </div>
             )}
 
-            {/* Delivered banner */}
             {isDelivered && (
               <div className="relative overflow-hidden rounded-2xl bg-emerald-500 p-6 text-center text-white shadow-elevated backdrop-blur">
                 <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(255,255,255,0.12),transparent)]" />
@@ -292,7 +317,6 @@ export default function TrackOrderPage() {
               </div>
             )}
 
-            {/* Order summary card */}
             <div className="rounded-2xl border border-white/[0.06] bg-brand-surface p-6 transition-shadow duration-300">
               <div className="mb-5 flex items-center justify-between">
                 <div>
@@ -322,7 +346,6 @@ export default function TrackOrderPage() {
               <OrderTimeline currentStatus={order.status} orderType={order.order_type} />
             </div>
 
-            {/* Countdown timer */}
             {showCountdown && (
               <PrepCountdown
                 confirmedAt={(order.accepted_at || order.confirmed_at)!}
@@ -330,7 +353,6 @@ export default function TrackOrderPage() {
               />
             )}
 
-            {/* Active order notice (no countdown) */}
             {isActive && !showCountdown && !isInQueue && !isPreparing && (
               <div className="rounded-2xl bg-brand-gold/10 p-6 backdrop-blur-sm">
                 <p className="text-[14px] leading-relaxed text-brand-text-muted">
@@ -341,7 +363,6 @@ export default function TrackOrderPage() {
               </div>
             )}
 
-            {/* Order items card */}
             {orderItems.length > 0 && (
               <div className="rounded-2xl border border-white/[0.06] bg-brand-surface p-6 transition-shadow duration-300">
                 <h3 className="mb-4 text-[14px] font-bold uppercase tracking-wider text-white">
@@ -368,7 +389,6 @@ export default function TrackOrderPage() {
               </div>
             )}
 
-            {/* Need Help card */}
             <div className="rounded-2xl border border-white/[0.06] bg-brand-surface p-6 transition-shadow duration-300">
               <h3 className="mb-4 text-[14px] font-bold uppercase tracking-wider text-white">
                 Need Help?

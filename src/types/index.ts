@@ -109,6 +109,7 @@ export interface Order {
   accepted_at: string | null;
   completed_at: string | null;
   estimated_minutes: number | null;
+  queue_position: number | null;
   expires_at: string;
   created_at: string;
 }

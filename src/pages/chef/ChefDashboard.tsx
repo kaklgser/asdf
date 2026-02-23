@@ -1,7 +1,11 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChefHat, LogOut, Clock, Check, Flame, Package, Users, Timer, Store, Truck } from 'lucide-react';
+import {
+  ChefHat, LogOut, Clock, Check, Flame, Package, Users, Timer,
+  Store, Truck, Volume2, VolumeX, Bell, Zap,
+} from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { playNewOrderAlert, playAcceptSound, playOrderCompleteSound } from '../../lib/sounds';
 import type { Order } from '../../types';
 
 interface OrderItemRow {
@@ -21,23 +25,13 @@ export default function ChefDashboard() {
   const [orderItemsMap, setOrderItemsMap] = useState<Record<string, OrderItemRow[]>>({});
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>('queue');
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [newOrderFlash, setNewOrderFlash] = useState(false);
   const navigate = useNavigate();
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const prevPendingCountRef = useRef(0);
+  const initialLoadRef = useRef(true);
 
-  useEffect(() => {
-    loadOrders();
-
-    const channel = supabase
-      .channel('chef-orders')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
-        loadOrders();
-      })
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
-  }, []);
-
-  async function loadOrders() {
+  const loadOrders = useCallback(async () => {
     const { data } = await supabase
       .from('orders')
       .select('*')
@@ -45,7 +39,19 @@ export default function ChefDashboard() {
       .order('placed_at', { ascending: true });
 
     if (data && data.length > 0) {
+      const pendingCount = data.filter((o) => o.status === 'pending').length;
+
+      if (!initialLoadRef.current && soundEnabled && pendingCount > prevPendingCountRef.current) {
+        playNewOrderAlert();
+        setNewOrderFlash(true);
+        setTab('queue');
+        setTimeout(() => setNewOrderFlash(false), 2000);
+      }
+
+      prevPendingCountRef.current = pendingCount;
+      initialLoadRef.current = false;
       setOrders(data);
+
       const ids = data.map((o) => o.id);
       const { data: items } = await supabase
         .from('order_items')
@@ -61,19 +67,25 @@ export default function ChefDashboard() {
         setOrderItemsMap(map);
       }
     } else {
+      initialLoadRef.current = false;
+      prevPendingCountRef.current = 0;
       setOrders(data || []);
     }
     setLoading(false);
-  }
+  }, [soundEnabled]);
 
-  function playNotification() {
-    try {
-      if (!audioRef.current) {
-        audioRef.current = new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQQAAAB/f39/');
-      }
-      audioRef.current.play().catch(() => {});
-    } catch {}
-  }
+  useEffect(() => {
+    loadOrders();
+
+    const channel = supabase
+      .channel('chef-orders')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
+        loadOrders();
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [loadOrders]);
 
   async function acceptOrder(order: Order) {
     const items = orderItemsMap[order.id] || [];
@@ -85,9 +97,10 @@ export default function ChefDashboard() {
       confirmed_at: new Date().toISOString(),
       accepted_at: new Date().toISOString(),
       estimated_minutes: estimatedMinutes,
+      queue_position: null,
     }).eq('id', order.id);
 
-    playNotification();
+    if (soundEnabled) playAcceptSound();
   }
 
   async function completeOrder(orderId: string) {
@@ -95,6 +108,8 @@ export default function ChefDashboard() {
       status: 'packed',
       completed_at: new Date().toISOString(),
     }).eq('id', orderId);
+
+    if (soundEnabled) playOrderCompleteSound();
   }
 
   async function markPickedUp(orderId: string) {
@@ -128,60 +143,87 @@ export default function ChefDashboard() {
   if (loading) {
     return (
       <div className="min-h-screen bg-brand-bg flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-brand-text-dim text-sm font-medium">Loading kitchen...</p>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-brand-bg">
-      <header className="sticky top-0 z-50 bg-brand-surface border-b border-white/[0.06] px-4 py-3">
+      <header className={`sticky top-0 z-50 border-b border-white/[0.06] px-4 py-3 transition-colors duration-300 ${
+        newOrderFlash ? 'bg-orange-500/20' : 'bg-brand-surface'
+      }`}>
         <div className="flex items-center justify-between max-w-2xl mx-auto">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 bg-orange-500/10 border border-orange-500/20 rounded-xl flex items-center justify-center">
-              <ChefHat size={20} className="text-orange-400" />
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${
+              newOrderFlash
+                ? 'bg-orange-500 animate-bounce-subtle'
+                : 'bg-orange-500/10 border border-orange-500/20'
+            }`}>
+              <ChefHat size={20} className={newOrderFlash ? 'text-white' : 'text-orange-400'} />
             </div>
             <div>
               <h1 className="font-bold text-[15px] text-white leading-tight">Kitchen</h1>
-              <p className="text-[11px] text-brand-text-dim font-medium">The Supreme Waffel</p>
+              <p className="text-[11px] text-brand-text-dim font-medium">The Supreme Waffle</p>
             </div>
           </div>
-          <button
-            onClick={handleSignOut}
-            className="p-2 text-brand-text-dim hover:text-orange-400 transition-colors rounded-lg hover:bg-white/5"
-          >
-            <LogOut size={18} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setSoundEnabled(!soundEnabled)}
+              className={`p-2 rounded-lg transition-colors ${
+                soundEnabled ? 'text-orange-400 bg-orange-500/10' : 'text-brand-text-dim hover:bg-white/5'
+              }`}
+            >
+              {soundEnabled ? <Volume2 size={18} /> : <VolumeX size={18} />}
+            </button>
+            <button
+              onClick={handleSignOut}
+              className="p-2 text-brand-text-dim hover:text-orange-400 transition-colors rounded-lg hover:bg-white/5"
+            >
+              <LogOut size={18} />
+            </button>
+          </div>
         </div>
       </header>
 
-      <div className="sticky top-[57px] z-40 bg-brand-bg border-b border-white/[0.06]">
-        <div className="max-w-2xl mx-auto px-4 py-2 flex gap-2">
-          {tabs.map((t) => (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[13px] font-bold transition-all ${
-                tab === t.key
-                  ? t.key === 'queue'
-                    ? 'bg-orange-500 text-white'
-                    : t.key === 'preparing'
-                    ? 'bg-amber-500 text-white'
-                    : 'bg-emerald-500 text-white'
-                  : 'bg-brand-surface text-brand-text-dim border border-white/[0.06]'
-              }`}
-            >
-              <t.icon size={15} />
-              {t.label}
-              {t.count > 0 && (
-                <span className={`min-w-[20px] h-5 flex items-center justify-center rounded-full text-[11px] font-black px-1.5 ${
-                  tab === t.key ? 'bg-white/20' : 'bg-white/[0.06]'
-                }`}>
-                  {t.count}
-                </span>
-              )}
-            </button>
-          ))}
+      <div className="sticky top-[57px] z-40 bg-brand-bg/95 backdrop-blur-sm border-b border-white/[0.06]">
+        <div className="max-w-2xl mx-auto px-4 py-2">
+          <div className="grid grid-cols-4 gap-2 mb-2">
+            <StatCard label="Queue" value={queueOrders.length} color="orange" />
+            <StatCard label="Making" value={preparingOrders.length} color="amber" />
+            <StatCard label="Ready" value={doneOrders.filter(o => o.status === 'packed').length} color="emerald" />
+            <StatCard label="Done" value={todayDone.filter(o => o.status === 'delivered').length} color="blue" />
+          </div>
+          <div className="flex gap-2">
+            {tabs.map((t) => (
+              <button
+                key={t.key}
+                onClick={() => setTab(t.key)}
+                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[13px] font-bold transition-all ${
+                  tab === t.key
+                    ? t.key === 'queue'
+                      ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/20'
+                      : t.key === 'preparing'
+                      ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20'
+                      : 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20'
+                    : 'bg-brand-surface text-brand-text-dim border border-white/[0.06]'
+                }`}
+              >
+                <t.icon size={15} />
+                {t.label}
+                {t.count > 0 && (
+                  <span className={`min-w-[20px] h-5 flex items-center justify-center rounded-full text-[11px] font-black px-1.5 ${
+                    tab === t.key ? 'bg-white/20' : 'bg-white/[0.06]'
+                  }`}>
+                    {t.count}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -198,23 +240,27 @@ export default function ChefDashboard() {
                tab === 'preparing' ? 'No orders being prepared' :
                'No completed orders today'}
             </p>
+            {tab === 'queue' && (
+              <p className="text-brand-text-dim text-[12px] mt-1">
+                New orders will appear here with a sound alert
+              </p>
+            )}
           </div>
         )}
 
-        {displayOrders.map((order) => {
+        {displayOrders.map((order, idx) => {
           const items = orderItemsMap[order.id] || [];
           const isQueue = order.status === 'pending';
           const isPreparing = order.status === 'preparing' || order.status === 'confirmed';
           const isReady = order.status === 'packed';
-          const isPickedUp = order.status === 'delivered';
           const totalQty = items.reduce((s, i) => s + i.quantity, 0);
 
           return (
             <div
               key={order.id}
-              className={`rounded-2xl border p-4 transition-all ${
+              className={`rounded-2xl border p-4 transition-all animate-fade-in ${
                 isQueue
-                  ? 'bg-brand-surface border-orange-500/20'
+                  ? 'bg-brand-surface border-orange-500/30 shadow-lg shadow-orange-500/5'
                   : isPreparing
                   ? 'bg-brand-surface border-amber-500/20'
                   : isReady
@@ -225,9 +271,14 @@ export default function ChefDashboard() {
               <div className="flex items-start justify-between gap-3 mb-3">
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    {isQueue && tab === 'queue' && (
-                      <span className="w-7 h-7 bg-orange-500/20 text-orange-400 rounded-lg flex items-center justify-center text-[12px] font-black">
-                        #{queueOrders.indexOf(order) + 1}
+                    {isQueue && (
+                      <span className="w-7 h-7 bg-orange-500 text-white rounded-lg flex items-center justify-center text-[12px] font-black">
+                        #{idx + 1}
+                      </span>
+                    )}
+                    {isPreparing && (
+                      <span className="w-7 h-7 bg-amber-500/20 text-amber-400 rounded-lg flex items-center justify-center">
+                        <Flame size={14} />
                       </span>
                     )}
                     <span className="font-black text-xl text-white">{order.order_id}</span>
@@ -303,9 +354,9 @@ export default function ChefDashboard() {
               {isQueue && (
                 <button
                   onClick={() => acceptOrder(order)}
-                  className="w-full mt-2 py-3 rounded-xl font-bold text-[14px] bg-orange-500 text-white hover:bg-orange-600 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                  className="w-full mt-2 py-3.5 rounded-xl font-bold text-[14px] bg-orange-500 text-white hover:bg-orange-600 transition-all active:scale-[0.98] flex items-center justify-center gap-2 shadow-lg shadow-orange-500/20"
                 >
-                  <ChefHat size={18} />
+                  <Zap size={18} />
                   Accept & Start Preparing
                 </button>
               )}
@@ -313,17 +364,17 @@ export default function ChefDashboard() {
               {isPreparing && (
                 <button
                   onClick={() => completeOrder(order.id)}
-                  className="w-full mt-2 py-3 rounded-xl font-bold text-[14px] bg-emerald-500 text-white hover:bg-emerald-600 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                  className="w-full mt-2 py-3.5 rounded-xl font-bold text-[14px] bg-emerald-500 text-white hover:bg-emerald-600 transition-all active:scale-[0.98] flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20"
                 >
                   <Package size={18} />
-                  Mark Ready
+                  Mark Complete
                 </button>
               )}
 
               {isReady && (
                 <button
                   onClick={() => markPickedUp(order.id)}
-                  className="w-full mt-2 py-3 rounded-xl font-bold text-[14px] bg-brand-gold text-brand-bg hover:brightness-110 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                  className="w-full mt-2 py-3.5 rounded-xl font-bold text-[14px] bg-brand-gold text-brand-bg hover:brightness-110 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
                 >
                   <Check size={18} />
                   Customer Picked Up
@@ -333,6 +384,34 @@ export default function ChefDashboard() {
           );
         })}
       </main>
+
+      {queueOrders.length > 0 && tab !== 'queue' && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 animate-slide-up">
+          <button
+            onClick={() => setTab('queue')}
+            className="flex items-center gap-2 bg-orange-500 text-white px-5 py-3 rounded-full font-bold text-[14px] shadow-elevated shadow-orange-500/30 hover:bg-orange-600 transition-all active:scale-95"
+          >
+            <Bell size={16} className="animate-bounce" />
+            {queueOrders.length} order{queueOrders.length !== 1 ? 's' : ''} waiting
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StatCard({ label, value, color }: { label: string; value: number; color: string }) {
+  const colorMap: Record<string, string> = {
+    orange: 'bg-orange-500/10 text-orange-400 border-orange-500/20',
+    amber: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+    emerald: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+    blue: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+  };
+
+  return (
+    <div className={`rounded-xl border px-3 py-2 text-center ${colorMap[color]}`}>
+      <p className="text-lg font-black tabular-nums">{value}</p>
+      <p className="text-[10px] font-semibold uppercase tracking-wider opacity-70">{label}</p>
     </div>
   );
 }
@@ -371,19 +450,29 @@ function PrepTimer({ acceptedAt, estimatedMinutes }: { acceptedAt: string; estim
   const progress = Math.min(100, (elapsed / totalSecs) * 100);
 
   return (
-    <div className="bg-amber-500/5 border border-amber-500/10 rounded-xl p-3 mb-2">
+    <div className={`rounded-xl p-3 mb-2 border ${
+      remaining <= 0
+        ? 'bg-red-500/5 border-red-500/20'
+        : 'bg-amber-500/5 border-amber-500/10'
+    }`}>
       <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-1.5 text-[12px] font-semibold text-amber-400">
+        <div className={`flex items-center gap-1.5 text-[12px] font-semibold ${
+          remaining <= 0 ? 'text-red-400' : 'text-amber-400'
+        }`}>
           <Timer size={13} />
           {remaining > 0 ? 'Time remaining' : 'Time is up!'}
         </div>
-        <span className="text-[14px] font-black tabular-nums text-amber-400">
+        <span className={`text-[14px] font-black tabular-nums ${
+          remaining <= 0 ? 'text-red-400' : 'text-amber-400'
+        }`}>
           {String(mins).padStart(2, '0')}:{String(secs).padStart(2, '0')}
         </span>
       </div>
       <div className="h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
         <div
-          className="h-1.5 rounded-full bg-amber-500 transition-all duration-1000"
+          className={`h-1.5 rounded-full transition-all duration-1000 ${
+            remaining <= 0 ? 'bg-red-500' : 'bg-amber-500'
+          }`}
           style={{ width: `${progress}%` }}
         />
       </div>

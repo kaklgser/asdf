@@ -58,8 +58,7 @@ function statusColor(status: string, orderType: OrderType): string {
   return 'bg-blue-500/10 text-blue-400';
 }
 
-function ConfirmPanel({ orderId, onCancel, onConfirm }: {
-  orderId: string;
+function ConfirmPanel({ onCancel, onConfirm }: {
   onCancel: () => void;
   onConfirm: (minutes: number) => void;
 }) {
@@ -333,7 +332,6 @@ export default function AdminOrders() {
 
                 {order.status === 'pending' && isConfirming && (
                   <ConfirmPanel
-                    orderId={order.id}
                     onCancel={() => cancelOrder(order.id)}
                     onConfirm={(minutes) => confirmWithTime(order.id, minutes)}
                   />
