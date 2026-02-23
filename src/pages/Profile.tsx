@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { User, Phone, LogOut, Package, ChevronRight, Shield, Pencil, Check, X } from 'lucide-react';
+import { User, Phone, LogOut, Package, ChevronRight, Shield, Pencil, Check, X, Mail } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { useToast } from '../components/Toast';
@@ -11,7 +11,7 @@ export default function ProfilePage() {
   const { showToast } = useToast();
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(profile?.full_name || '');
-  const [phone, setPhone] = useState(profile?.phone || '');
+  const [emailVal, setEmailVal] = useState(profile?.email || '');
   const [saving, setSaving] = useState(false);
 
   async function handleSignOut() {
@@ -29,7 +29,7 @@ export default function ProfilePage() {
     setSaving(true);
     const { error } = await supabase.from('profiles').update({
       full_name: name.trim(),
-      phone: phone.trim(),
+      email: emailVal.trim(),
     }).eq('id', user.id);
 
     if (error) {
@@ -73,8 +73,14 @@ export default function ProfilePage() {
                   <h2 className="text-[16px] font-bold text-white truncate">{profile.full_name || 'No name set'}</h2>
                   <div className="flex items-center gap-1.5 mt-0.5">
                     <Phone size={12} className="text-brand-text-dim" />
-                    <span className="text-[13px] text-brand-text-dim">{profile.phone || 'No phone'}</span>
+                    <span className="text-[13px] text-brand-text-dim">+91 {profile.phone || 'No phone'}</span>
                   </div>
+                  {profile.email && (
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <Mail size={12} className="text-brand-text-dim" />
+                      <span className="text-[13px] text-brand-text-dim">{profile.email}</span>
+                    </div>
+                  )}
                 </>
               ) : (
                 <div className="space-y-2">
@@ -86,13 +92,16 @@ export default function ProfilePage() {
                     className="input-field text-[14px] py-2"
                   />
                   <input
-                    type="tel"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                    placeholder="Phone number"
+                    type="email"
+                    value={emailVal}
+                    onChange={(e) => setEmailVal(e.target.value)}
+                    placeholder="Email (optional)"
                     className="input-field text-[14px] py-2"
-                    inputMode="numeric"
                   />
+                  <div className="flex items-center gap-1.5 px-1">
+                    <Phone size={12} className="text-brand-text-dim" />
+                    <span className="text-[12px] text-brand-text-dim">+91 {profile.phone}</span>
+                  </div>
                 </div>
               )}
             </div>
@@ -100,7 +109,7 @@ export default function ProfilePage() {
               <button
                 onClick={() => {
                   setName(profile.full_name || '');
-                  setPhone(profile.phone || '');
+                  setEmailVal(profile.email || '');
                   setEditing(true);
                 }}
                 className="p-2 rounded-lg text-brand-text-dim hover:text-brand-gold hover:bg-brand-gold/10 transition-colors flex-shrink-0"

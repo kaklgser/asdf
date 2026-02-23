@@ -12,18 +12,14 @@ export interface Profile {
   role: 'customer' | 'chef' | 'admin';
 }
 
-function phoneToEmail(phone: string): string {
-  const digits = phone.replace(/\D/g, '');
-  return `${digits}@supremewaffle.app`;
-}
-
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   profile: Profile | null;
   loading: boolean;
-  signIn: (phone: string, password: string) => Promise<{ error: string | null }>;
-  signUp: (phone: string, password: string, fullName: string) => Promise<{ error: string | null }>;
+  sendOtp: (phone: string) => Promise<{ error: string | null }>;
+  verifyOtp: (phone: string, token: string) => Promise<{ error: string | null; isNewUser: boolean }>;
+  completeProfile: (fullName: string, email: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -36,13 +32,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  async function fetchProfile(userId: string) {
+  async function fetchProfile(userId: string): Promise<Profile | null> {
     const { data } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', userId)
       .maybeSingle();
     setProfile(data);
+    return data;
   }
 
   useEffect(() => {
@@ -73,23 +70,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signIn = async (phone: string, password: string) => {
-    const email = phoneToEmail(phone);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error?.message === 'Invalid login credentials') {
-      return { error: 'Invalid phone number or password' };
-    }
-    return { error: error?.message ?? null };
+  const sendOtp = async (phone: string) => {
+    const fullPhone = `+91${phone.replace(/\D/g, '')}`;
+    const { error } = await supabase.auth.signInWithOtp({ phone: fullPhone });
+    if (error) return { error: error.message };
+    return { error: null };
   };
 
-  const signUp = async (phone: string, password: string, fullName: string) => {
-    const email = phoneToEmail(phone);
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { full_name: fullName, phone } },
+  const verifyOtp = async (phone: string, token: string) => {
+    const fullPhone = `+91${phone.replace(/\D/g, '')}`;
+    const { data, error } = await supabase.auth.verifyOtp({
+      phone: fullPhone,
+      token,
+      type: 'sms',
     });
-    return { error: error?.message ?? null };
+    if (error) return { error: error.message, isNewUser: false };
+
+    if (data.user) {
+      const p = await fetchProfile(data.user.id);
+      const isNewUser = !p || !p.full_name;
+      return { error: null, isNewUser };
+    }
+
+    return { error: 'Verification failed', isNewUser: false };
+  };
+
+  const completeProfile = async (fullName: string, email: string) => {
+    if (!user) return { error: 'Not authenticated' };
+
+    const phone = user.phone?.replace('+91', '') || '';
+
+    const { error } = await supabase.from('profiles').upsert({
+      id: user.id,
+      full_name: fullName,
+      email,
+      phone,
+    }, { onConflict: 'id' });
+
+    if (error) return { error: error.message };
+
+    await fetchProfile(user.id);
+    return { error: null };
   };
 
   const signOut = async () => {
@@ -102,7 +123,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, profile, loading, signIn, signUp, signOut, refreshProfile }}>
+    <AuthContext.Provider value={{ user, session, profile, loading, sendOtp, verifyOtp, completeProfile, signOut, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );
