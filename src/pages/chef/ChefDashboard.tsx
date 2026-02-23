@@ -314,34 +314,29 @@ export default function ChefDashboard() {
                   {order.order_type === 'pickup' ? 'Pickup' : 'Delivery'}
                 </span>
                 <span className="text-brand-text-dim">{totalQty} item{totalQty !== 1 ? 's' : ''}</span>
-                {order.payment_method === 'cod' ? (
-                  <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg font-bold ${
-                    order.payment_status === 'paid'
-                      ? 'bg-emerald-500/10 text-emerald-400'
-                      : 'bg-red-500/10 text-red-400'
-                  }`}>
-                    {order.payment_status === 'paid' ? <BadgeCheck size={12} /> : <Wallet size={12} />}
-                    {order.payment_status === 'paid'
-                      ? 'Paid'
-                      : order.order_type === 'pickup' ? 'Cash' : 'COD'}
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg font-bold bg-emerald-500/10 text-emerald-400">
-                    <BadgeCheck size={12} />
-                    {order.payment_method.toUpperCase()}
-                  </span>
-                )}
+                <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg font-bold ${
+                  order.payment_status === 'paid'
+                    ? 'bg-emerald-500/10 text-emerald-400'
+                    : 'bg-red-500/10 text-red-400'
+                }`}>
+                  {order.payment_status === 'paid' ? <BadgeCheck size={12} /> : <Wallet size={12} />}
+                  {order.payment_status === 'paid'
+                    ? 'Paid'
+                    : order.payment_method === 'upi' ? 'UPI Pending' : 'Cash'}
+                </span>
               </div>
 
-              {order.payment_method === 'cod' && order.payment_status !== 'paid' && (isQueue || isPreparing || isReady) && (
+              {order.payment_status !== 'paid' && (isQueue || isPreparing || isReady) && (
                 <div className="rounded-xl border-2 border-red-500/20 bg-red-500/5 p-3 mb-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <Wallet size={16} className="text-red-400" />
                       <div>
-                        <p className="text-[13px] font-bold text-red-400">Payment Pending</p>
+                        <p className="text-[13px] font-bold text-red-400">
+                          {order.payment_method === 'upi' ? 'UPI Payment Pending' : 'Cash Pending'}
+                        </p>
                         <p className="text-[11px] text-brand-text-dim">
-                          {order.order_type === 'pickup' ? 'Collect' : 'COD'} -- {'\u20B9'}{order.total}
+                          {order.payment_method === 'upi' ? 'Verify UPI received' : 'Collect cash'} -- {'\u20B9'}{order.total}
                         </p>
                       </div>
                     </div>

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Minus, Plus, Trash2, ShoppingBag, ArrowLeft, Tag, User, Pencil, Store } from 'lucide-react';
+import { Minus, Plus, Trash2, ShoppingBag, ArrowLeft, Tag, User, Pencil, Store, Wallet, Smartphone } from 'lucide-react';
 import { useCart } from '../contexts/CartContext';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -291,31 +291,45 @@ export default function CartPage() {
           </div>
         )}
 
-        <div className="bg-brand-surface rounded-xl p-4 border border-white/[0.06] mb-4">
-          <h3 className="font-bold text-white text-[14px] mb-3">Payment</h3>
-          <div className="space-y-2">
-            {([
-              { value: 'cod' as PaymentMethod, label: 'Cash (Pay at Shop)', desc: 'Pay when you collect your order' },
-              { value: 'upi' as PaymentMethod, label: 'UPI', desc: 'Pay using any UPI app' },
-            ]).map((pm) => (
-              <button
-                key={pm.value}
-                onClick={() => setPaymentMethod(pm.value)}
-                className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-xl border transition-all text-left ${
-                  paymentMethod === pm.value
-                    ? 'border-brand-gold bg-brand-gold/10'
-                    : 'border-white/[0.06] hover:border-white/10'
-                }`}
-              >
-                <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${paymentMethod === pm.value ? 'border-brand-gold bg-brand-gold' : 'border-brand-text-dim'}`}>
-                  {paymentMethod === pm.value && <div className="w-full h-full rounded-full bg-brand-bg scale-[0.4]" />}
-                </div>
-                <div>
-                  <span className="text-[13px] font-semibold text-white block">{pm.label}</span>
-                  <span className="text-[11px] text-brand-text-dim">{pm.desc}</span>
-                </div>
-              </button>
-            ))}
+        <div className="mb-4">
+          <h3 className="font-bold text-white text-[14px] mb-3">How would you like to pay?</h3>
+          <div className="grid grid-cols-2 gap-2.5">
+            <button
+              onClick={() => setPaymentMethod('cod')}
+              className={`relative flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all text-center ${
+                paymentMethod === 'cod'
+                  ? 'border-brand-gold bg-brand-gold/10'
+                  : 'border-white/[0.06] bg-brand-surface hover:border-white/10'
+              }`}
+            >
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                paymentMethod === 'cod' ? 'bg-brand-gold/20' : 'bg-white/[0.06]'
+              }`}>
+                <Wallet size={20} className={paymentMethod === 'cod' ? 'text-brand-gold' : 'text-brand-text-dim'} />
+              </div>
+              <div>
+                <span className={`text-[14px] font-bold block ${paymentMethod === 'cod' ? 'text-white' : 'text-brand-text-muted'}`}>Pay at Counter</span>
+                <span className="text-[11px] text-brand-text-dim">Cash / UPI at shop</span>
+              </div>
+            </button>
+            <button
+              onClick={() => setPaymentMethod('upi')}
+              className={`relative flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all text-center ${
+                paymentMethod === 'upi'
+                  ? 'border-brand-gold bg-brand-gold/10'
+                  : 'border-white/[0.06] bg-brand-surface hover:border-white/10'
+              }`}
+            >
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                paymentMethod === 'upi' ? 'bg-brand-gold/20' : 'bg-white/[0.06]'
+              }`}>
+                <Smartphone size={20} className={paymentMethod === 'upi' ? 'text-brand-gold' : 'text-brand-text-dim'} />
+              </div>
+              <div>
+                <span className={`text-[14px] font-bold block ${paymentMethod === 'upi' ? 'text-white' : 'text-brand-text-muted'}`}>Pay Now via UPI</span>
+                <span className="text-[11px] text-brand-text-dim">PhonePe / GPay / Paytm</span>
+              </div>
+            </button>
           </div>
         </div>
 
