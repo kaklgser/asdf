@@ -1,0 +1,392 @@
+import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ChefHat, LogOut, Clock, Check, Flame, Package, Users, Timer, Store, Truck } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
+import type { Order } from '../../types';
+
+interface OrderItemRow {
+  id: string;
+  order_id: string;
+  menu_item_id: string;
+  item_name: string;
+  quantity: number;
+  unit_price: number;
+  customizations: { group_name: string; option_name: string; price: number }[] | null;
+}
+
+type Tab = 'queue' | 'preparing' | 'done';
+
+export default function ChefDashboard() {
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [orderItemsMap, setOrderItemsMap] = useState<Record<string, OrderItemRow[]>>({});
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState<Tab>('queue');
+  const navigate = useNavigate();
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    loadOrders();
+
+    const channel = supabase
+      .channel('chef-orders')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
+        loadOrders();
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, []);
+
+  async function loadOrders() {
+    const { data } = await supabase
+      .from('orders')
+      .select('*')
+      .in('status', ['pending', 'confirmed', 'preparing', 'packed', 'delivered'])
+      .order('placed_at', { ascending: true });
+
+    if (data && data.length > 0) {
+      setOrders(data);
+      const ids = data.map((o) => o.id);
+      const { data: items } = await supabase
+        .from('order_items')
+        .select('*')
+        .in('order_id', ids);
+
+      if (items) {
+        const map: Record<string, OrderItemRow[]> = {};
+        items.forEach((item) => {
+          if (!map[item.order_id]) map[item.order_id] = [];
+          map[item.order_id].push(item as OrderItemRow);
+        });
+        setOrderItemsMap(map);
+      }
+    } else {
+      setOrders(data || []);
+    }
+    setLoading(false);
+  }
+
+  function playNotification() {
+    try {
+      if (!audioRef.current) {
+        audioRef.current = new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQQAAAB/f39/');
+      }
+      audioRef.current.play().catch(() => {});
+    } catch {}
+  }
+
+  async function acceptOrder(order: Order) {
+    const items = orderItemsMap[order.id] || [];
+    const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
+    const estimatedMinutes = Math.max(5, Math.ceil(totalItems * 2.5));
+
+    await supabase.from('orders').update({
+      status: 'preparing',
+      confirmed_at: new Date().toISOString(),
+      accepted_at: new Date().toISOString(),
+      estimated_minutes: estimatedMinutes,
+    }).eq('id', order.id);
+
+    playNotification();
+  }
+
+  async function completeOrder(orderId: string) {
+    await supabase.from('orders').update({
+      status: 'packed',
+      completed_at: new Date().toISOString(),
+    }).eq('id', orderId);
+  }
+
+  async function markPickedUp(orderId: string) {
+    await supabase.from('orders').update({
+      status: 'delivered',
+    }).eq('id', orderId);
+  }
+
+  async function handleSignOut() {
+    await supabase.auth.signOut();
+    navigate('/chef/login');
+  }
+
+  const queueOrders = orders.filter((o) => o.status === 'pending');
+  const preparingOrders = orders.filter((o) => o.status === 'preparing' || o.status === 'confirmed');
+  const doneOrders = orders.filter((o) => o.status === 'packed' || o.status === 'delivered');
+  const todayDone = doneOrders.filter((o) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return new Date(o.placed_at) >= today;
+  });
+
+  const tabs: { key: Tab; label: string; count: number; icon: typeof Clock }[] = [
+    { key: 'queue', label: 'Queue', count: queueOrders.length, icon: Users },
+    { key: 'preparing', label: 'Preparing', count: preparingOrders.length, icon: Flame },
+    { key: 'done', label: 'Done', count: todayDone.length, icon: Check },
+  ];
+
+  const displayOrders = tab === 'queue' ? queueOrders : tab === 'preparing' ? preparingOrders : todayDone;
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-brand-bg flex items-center justify-center">
+        <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-brand-bg">
+      <header className="sticky top-0 z-50 bg-brand-surface border-b border-white/[0.06] px-4 py-3">
+        <div className="flex items-center justify-between max-w-2xl mx-auto">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 bg-orange-500/10 border border-orange-500/20 rounded-xl flex items-center justify-center">
+              <ChefHat size={20} className="text-orange-400" />
+            </div>
+            <div>
+              <h1 className="font-bold text-[15px] text-white leading-tight">Kitchen</h1>
+              <p className="text-[11px] text-brand-text-dim font-medium">The Supreme Waffel</p>
+            </div>
+          </div>
+          <button
+            onClick={handleSignOut}
+            className="p-2 text-brand-text-dim hover:text-orange-400 transition-colors rounded-lg hover:bg-white/5"
+          >
+            <LogOut size={18} />
+          </button>
+        </div>
+      </header>
+
+      <div className="sticky top-[57px] z-40 bg-brand-bg border-b border-white/[0.06]">
+        <div className="max-w-2xl mx-auto px-4 py-2 flex gap-2">
+          {tabs.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[13px] font-bold transition-all ${
+                tab === t.key
+                  ? t.key === 'queue'
+                    ? 'bg-orange-500 text-white'
+                    : t.key === 'preparing'
+                    ? 'bg-amber-500 text-white'
+                    : 'bg-emerald-500 text-white'
+                  : 'bg-brand-surface text-brand-text-dim border border-white/[0.06]'
+              }`}
+            >
+              <t.icon size={15} />
+              {t.label}
+              {t.count > 0 && (
+                <span className={`min-w-[20px] h-5 flex items-center justify-center rounded-full text-[11px] font-black px-1.5 ${
+                  tab === t.key ? 'bg-white/20' : 'bg-white/[0.06]'
+                }`}>
+                  {t.count}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <main className="max-w-2xl mx-auto px-4 py-4 pb-20 space-y-3">
+        {displayOrders.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="w-16 h-16 bg-brand-surface rounded-2xl flex items-center justify-center mb-4">
+              {tab === 'queue' ? <Users size={28} className="text-brand-text-dim" /> :
+               tab === 'preparing' ? <Flame size={28} className="text-brand-text-dim" /> :
+               <Check size={28} className="text-brand-text-dim" />}
+            </div>
+            <p className="text-brand-text-muted font-semibold">
+              {tab === 'queue' ? 'No orders in queue' :
+               tab === 'preparing' ? 'No orders being prepared' :
+               'No completed orders today'}
+            </p>
+          </div>
+        )}
+
+        {displayOrders.map((order) => {
+          const items = orderItemsMap[order.id] || [];
+          const isQueue = order.status === 'pending';
+          const isPreparing = order.status === 'preparing' || order.status === 'confirmed';
+          const isReady = order.status === 'packed';
+          const isPickedUp = order.status === 'delivered';
+          const totalQty = items.reduce((s, i) => s + i.quantity, 0);
+
+          return (
+            <div
+              key={order.id}
+              className={`rounded-2xl border p-4 transition-all ${
+                isQueue
+                  ? 'bg-brand-surface border-orange-500/20'
+                  : isPreparing
+                  ? 'bg-brand-surface border-amber-500/20'
+                  : isReady
+                  ? 'bg-emerald-500/5 border-emerald-500/30'
+                  : 'bg-brand-surface border-white/[0.06] opacity-70'
+              }`}
+            >
+              <div className="flex items-start justify-between gap-3 mb-3">
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {isQueue && tab === 'queue' && (
+                      <span className="w-7 h-7 bg-orange-500/20 text-orange-400 rounded-lg flex items-center justify-center text-[12px] font-black">
+                        #{queueOrders.indexOf(order) + 1}
+                      </span>
+                    )}
+                    <span className="font-black text-xl text-white">{order.order_id}</span>
+                    <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider ${
+                      isQueue ? 'bg-orange-500/10 text-orange-400' :
+                      isPreparing ? 'bg-amber-500/10 text-amber-400' :
+                      isReady ? 'bg-emerald-500/10 text-emerald-400' :
+                      'bg-brand-text-dim/10 text-brand-text-dim'
+                    }`}>
+                      {isQueue ? 'In Queue' : isPreparing ? 'Preparing' : isReady ? 'Ready' : 'Picked Up'}
+                    </span>
+                  </div>
+                  <p className="text-[13px] text-brand-text-dim mt-1">
+                    {order.customer_name} -- {getTimeAgo(order.placed_at)}
+                  </p>
+                </div>
+                <span className="font-bold text-brand-gold text-lg tabular-nums">{'\u20B9'}{order.total}</span>
+              </div>
+
+              <div className="flex items-center gap-2 mb-3 text-[12px]">
+                <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg font-bold uppercase tracking-wider ${
+                  order.order_type === 'pickup'
+                    ? 'bg-brand-gold/10 text-brand-gold'
+                    : 'bg-sky-500/10 text-sky-400'
+                }`}>
+                  {order.order_type === 'pickup' ? <Store size={12} /> : <Truck size={12} />}
+                  {order.order_type === 'pickup' ? 'Pickup' : 'Delivery'}
+                </span>
+                <span className="text-brand-text-dim">{totalQty} item{totalQty !== 1 ? 's' : ''}</span>
+                <span className="text-brand-text-dim">
+                  {order.payment_method === 'cod'
+                    ? (order.order_type === 'pickup' ? 'Pay at Counter' : 'COD')
+                    : order.payment_method.toUpperCase()}
+                </span>
+              </div>
+
+              {items.length > 0 ? (
+                <div className="space-y-2 mb-3">
+                  {items.map((item) => (
+                    <div key={item.id} className="bg-white/[0.03] rounded-lg px-3 py-2">
+                      <div className="flex items-center justify-between text-[13px]">
+                        <div className="flex items-center gap-2">
+                          <span className="w-6 h-6 bg-brand-gold/20 rounded-md flex items-center justify-center text-[11px] font-black text-brand-gold tabular-nums shrink-0">
+                            {item.quantity}x
+                          </span>
+                          <span className="text-white font-semibold">{item.item_name}</span>
+                        </div>
+                        <span className="text-brand-text-dim text-[12px] tabular-nums">{'\u20B9'}{Number(item.unit_price) * item.quantity}</span>
+                      </div>
+                      {item.customizations && item.customizations.length > 0 && (
+                        <div className="mt-1.5 ml-8 space-y-0.5">
+                          {item.customizations.map((c, i) => (
+                            <p key={i} className="text-[11px] text-brand-text-dim">
+                              {c.group_name}: <span className="text-brand-text-muted">{c.option_name}</span>
+                              {c.price > 0 && <span className="text-brand-gold ml-1">(+{'\u20B9'}{c.price})</span>}
+                            </p>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="bg-white/[0.03] rounded-lg px-3 py-3 mb-3 text-center">
+                  <p className="text-[12px] text-brand-text-dim">Loading items...</p>
+                </div>
+              )}
+
+              {isPreparing && order.accepted_at && order.estimated_minutes && (
+                <PrepTimer acceptedAt={order.accepted_at} estimatedMinutes={order.estimated_minutes} />
+              )}
+
+              {isQueue && (
+                <button
+                  onClick={() => acceptOrder(order)}
+                  className="w-full mt-2 py-3 rounded-xl font-bold text-[14px] bg-orange-500 text-white hover:bg-orange-600 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                >
+                  <ChefHat size={18} />
+                  Accept & Start Preparing
+                </button>
+              )}
+
+              {isPreparing && (
+                <button
+                  onClick={() => completeOrder(order.id)}
+                  className="w-full mt-2 py-3 rounded-xl font-bold text-[14px] bg-emerald-500 text-white hover:bg-emerald-600 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                >
+                  <Package size={18} />
+                  Mark Ready
+                </button>
+              )}
+
+              {isReady && (
+                <button
+                  onClick={() => markPickedUp(order.id)}
+                  className="w-full mt-2 py-3 rounded-xl font-bold text-[14px] bg-brand-gold text-brand-bg hover:brightness-110 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                >
+                  <Check size={18} />
+                  Customer Picked Up
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </main>
+    </div>
+  );
+}
+
+function getTimeAgo(dateStr: string) {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  return `${hrs}h ${mins % 60}m ago`;
+}
+
+function PrepTimer({ acceptedAt, estimatedMinutes }: { acceptedAt: string; estimatedMinutes: number }) {
+  const [remaining, setRemaining] = useState(0);
+  const intervalRef = useRef<ReturnType<typeof setInterval>>();
+
+  useEffect(() => {
+    const readyAt = new Date(acceptedAt).getTime() + estimatedMinutes * 60_000;
+
+    function tick() {
+      const left = Math.max(0, Math.floor((readyAt - Date.now()) / 1000));
+      setRemaining(left);
+      if (left <= 0 && intervalRef.current) clearInterval(intervalRef.current);
+    }
+
+    tick();
+    intervalRef.current = setInterval(tick, 1000);
+    return () => clearInterval(intervalRef.current);
+  }, [acceptedAt, estimatedMinutes]);
+
+  const mins = Math.floor(remaining / 60);
+  const secs = remaining % 60;
+  const totalSecs = estimatedMinutes * 60;
+  const elapsed = totalSecs - remaining;
+  const progress = Math.min(100, (elapsed / totalSecs) * 100);
+
+  return (
+    <div className="bg-amber-500/5 border border-amber-500/10 rounded-xl p-3 mb-2">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-1.5 text-[12px] font-semibold text-amber-400">
+          <Timer size={13} />
+          {remaining > 0 ? 'Time remaining' : 'Time is up!'}
+        </div>
+        <span className="text-[14px] font-black tabular-nums text-amber-400">
+          {String(mins).padStart(2, '0')}:{String(secs).padStart(2, '0')}
+        </span>
+      </div>
+      <div className="h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
+        <div
+          className="h-1.5 rounded-full bg-amber-500 transition-all duration-1000"
+          style={{ width: `${progress}%` }}
+        />
+      </div>
+    </div>
+  );
+}
