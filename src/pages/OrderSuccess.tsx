@@ -1,20 +1,24 @@
 import { useState, useEffect, useRef } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { CheckCircle, Clock, Copy, RotateCcw, Store, Truck, ChefHat, Users, Bell } from 'lucide-react';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { CheckCircle, Clock, Copy, RotateCcw, Store, Truck, ChefHat, Users, Bell, Sparkles, ArrowRight, Star } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import type { Order } from '../types';
+import type { Order, MenuItem } from '../types';
 import { useToast } from '../components/Toast';
-import { playOrderSound, playOrderCompleteSound } from '../lib/sounds';
+import { playOrderSound, playOrderCompleteSound, playPickupReadyAlert } from '../lib/sounds';
 
 export default function OrderSuccessPage() {
   const { orderId } = useParams<{ orderId: string }>();
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
+  const [specials, setSpecials] = useState<MenuItem[]>([]);
   const { showToast } = useToast();
   const prevStatusRef = useRef<string | null>(null);
+  const pickupAlertPlayedRef = useRef(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     playOrderSound();
+    loadSpecials();
   }, []);
 
   useEffect(() => {
@@ -30,8 +34,19 @@ export default function OrderSuccessPage() {
       } else if (order.status === 'packed') {
         playOrderCompleteSound();
         showToast('Your order is ready!');
+      } else if (order.status === 'delivered' && order.order_type === 'pickup') {
+        if (!pickupAlertPlayedRef.current) {
+          pickupAlertPlayedRef.current = true;
+          playPickupReadyAlert();
+        }
       }
     }
+
+    if (order.status === 'packed' && order.order_type === 'pickup' && !pickupAlertPlayedRef.current) {
+      pickupAlertPlayedRef.current = true;
+      playPickupReadyAlert();
+    }
+
     prevStatusRef.current = order.status;
 
     const channel = supabase
@@ -55,6 +70,16 @@ export default function OrderSuccessPage() {
       .maybeSingle();
     if (data) setOrder(data);
     setLoading(false);
+  }
+
+  async function loadSpecials() {
+    const { data } = await supabase
+      .from('menu_items')
+      .select('*')
+      .eq('is_available', true)
+      .order('rating', { ascending: false })
+      .limit(6);
+    if (data) setSpecials(data);
   }
 
   function copyOrderId() {
@@ -93,21 +118,14 @@ export default function OrderSuccessPage() {
   const isReady = order.status === 'packed';
   const isDelivered = order.status === 'delivered';
   const isConfirmed = order.status !== 'pending' && order.status !== 'expired' && order.status !== 'cancelled';
+  const showSpecials = isDelivered || isReady;
 
   return (
     <div className="min-h-[60vh] flex items-center justify-center section-padding py-12 bg-brand-bg">
       <div className="max-w-md w-full text-center animate-fade-in">
 
         {isReady && (
-          <>
-            <div className="w-20 h-20 bg-emerald-500/10 border border-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-6 animate-scale-in">
-              <Bell size={40} className="text-emerald-400 animate-bounce" />
-            </div>
-            <h1 className="text-2xl font-extrabold tracking-tight text-white mb-2">Your Order is Complete!</h1>
-            <p className="text-brand-text-muted mb-8">
-              Come and pick up your order at the counter.
-            </p>
-          </>
+          <PickupReadyBanner orderId={order.order_id} />
         )}
 
         {isPreparing && (
@@ -133,15 +151,7 @@ export default function OrderSuccessPage() {
         )}
 
         {isDelivered && (
-          <>
-            <div className="w-20 h-20 bg-emerald-500/10 border border-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-6 animate-scale-in">
-              <CheckCircle size={40} className="text-emerald-400" />
-            </div>
-            <h1 className="text-2xl font-extrabold tracking-tight text-white mb-2">
-              {isPickup ? 'Order Picked Up!' : 'Order Delivered!'}
-            </h1>
-            <p className="text-brand-text-muted mb-8">Enjoy your waffles!</p>
-          </>
+          <EnjoyFoodCelebration isPickup={isPickup} />
         )}
 
         {isConfirmed && !isPreparing && !isReady && !isDelivered && (
@@ -214,7 +224,7 @@ export default function OrderSuccessPage() {
           )}
 
           {isReady && (
-            <div className="mt-4 bg-emerald-500/10 rounded-2xl px-4 py-3 border border-emerald-500/20">
+            <div className="mt-4 bg-emerald-500/10 rounded-2xl px-4 py-3 border border-emerald-500/20 animate-pulse">
               <p className="text-[14px] text-emerald-400 font-bold flex items-center justify-center gap-2">
                 <Bell size={16} />
                 Your order is complete! Pick it up now.
@@ -264,8 +274,12 @@ export default function OrderSuccessPage() {
           </div>
         </div>
 
+        {showSpecials && specials.length > 0 && (
+          <SpecialsSuggestions items={specials} onViewMenu={() => navigate('/menu')} />
+        )}
+
         <div className="flex flex-col gap-3">
-          {(isConfirmed || isPending) && (
+          {(isConfirmed || isPending) && !isDelivered && (
             <Link to={`/track/${order.order_id}`} className="btn-primary w-full text-center">
               Track Order
             </Link>
@@ -277,10 +291,163 @@ export default function OrderSuccessPage() {
             </Link>
           )}
           <Link to="/menu" className="btn-outline w-full text-center">
-            Back to Menu
+            {isDelivered ? 'Order More' : 'Back to Menu'}
           </Link>
         </div>
       </div>
+    </div>
+  );
+}
+
+function PickupReadyBanner({ orderId }: { orderId: string }) {
+  const [pulse, setPulse] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setPulse(false), 5000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  return (
+    <div className={`relative overflow-hidden rounded-3xl mb-8 transition-all duration-500 ${
+      pulse ? 'ring-4 ring-emerald-400/40 shadow-[0_0_40px_rgba(16,185,129,0.2)]' : ''
+    }`}>
+      <div className="absolute inset-0 bg-gradient-to-br from-emerald-500 to-emerald-600" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_80%,rgba(255,255,255,0.15),transparent)]" />
+      <div className="relative px-6 py-8">
+        <div className={`mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-white/20 backdrop-blur-sm ${
+          pulse ? 'animate-bounce' : ''
+        }`}>
+          <Bell size={40} className="text-white" />
+        </div>
+        <h1 className="text-2xl font-black text-white mb-2 tracking-tight">
+          Your Order is Ready!
+        </h1>
+        <p className="text-emerald-100 text-[15px] font-medium mb-4">
+          Head to the counter and show order <span className="font-black">{orderId}</span>
+        </p>
+        <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-full px-5 py-2.5 text-white text-[13px] font-bold">
+          <Sparkles size={14} />
+          Pick up now -- freshly made!
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EnjoyFoodCelebration({ isPickup }: { isPickup: boolean }) {
+  const [showParticles, setShowParticles] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setShowParticles(false), 4000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  return (
+    <div className="relative mb-8">
+      {showParticles && (
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+          {Array.from({ length: 20 }).map((_, i) => (
+            <div
+              key={i}
+              className="absolute w-2 h-2 rounded-full animate-confetti"
+              style={{
+                left: `${Math.random() * 100}%`,
+                top: `-10%`,
+                backgroundColor: ['#FFD700', '#FF6B35', '#10B981', '#F59E0B', '#3B82F6', '#EC4899'][i % 6],
+                animationDelay: `${Math.random() * 2}s`,
+                animationDuration: `${2 + Math.random() * 2}s`,
+              }}
+            />
+          ))}
+        </div>
+      )}
+
+      <div className="relative">
+        <div className="w-24 h-24 bg-gradient-to-br from-brand-gold/20 to-brand-gold/5 border-2 border-brand-gold/30 rounded-full flex items-center justify-center mx-auto mb-6 animate-scale-in">
+          <CheckCircle size={48} className="text-brand-gold" />
+        </div>
+        <h1 className="text-3xl font-black tracking-tight text-white mb-3">
+          {isPickup ? 'Enjoy Your Food!' : 'Order Delivered!'}
+        </h1>
+        <p className="text-brand-text-muted text-[15px] mb-2">
+          {isPickup
+            ? 'Thank you for dining with us. We hope you love every bite!'
+            : 'Your waffles have arrived. Enjoy every bite!'}
+        </p>
+        <div className="inline-flex items-center gap-2 mt-2 bg-brand-gold/10 border border-brand-gold/20 rounded-full px-5 py-2 text-brand-gold text-[13px] font-bold">
+          <Star size={14} fill="currentColor" />
+          We'd love to see you again soon!
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SpecialsSuggestions({ items, onViewMenu }: { items: MenuItem[]; onViewMenu: () => void }) {
+  return (
+    <div className="rounded-2xl border border-brand-gold/15 bg-gradient-to-b from-brand-gold/[0.04] to-transparent p-5 mb-6 text-left animate-fade-in">
+      <div className="flex items-center gap-2 mb-4">
+        <div className="w-8 h-8 bg-brand-gold/10 rounded-lg flex items-center justify-center">
+          <Sparkles size={16} className="text-brand-gold" />
+        </div>
+        <div>
+          <h3 className="text-[14px] font-bold text-white">Today's Top Picks</h3>
+          <p className="text-[12px] text-brand-text-dim font-medium">Craving more? Try these favorites</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2.5 mb-4">
+        {items.slice(0, 3).map((item) => (
+          <Link
+            key={item.id}
+            to="/menu"
+            className="group rounded-xl overflow-hidden border border-white/[0.06] bg-brand-surface hover:border-brand-gold/30 transition-all"
+          >
+            <div className="aspect-square overflow-hidden">
+              <img
+                src={item.image_url}
+                alt={item.name}
+                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+              />
+            </div>
+            <div className="p-2">
+              <p className="text-[11px] font-bold text-white truncate leading-tight">{item.name}</p>
+              <p className="text-[12px] font-extrabold text-brand-gold mt-0.5">{'\u20B9'}{item.price}</p>
+            </div>
+          </Link>
+        ))}
+      </div>
+
+      {items.length > 3 && (
+        <div className="grid grid-cols-1 gap-2 mb-4">
+          {items.slice(3, 6).map((item) => (
+            <Link
+              key={item.id}
+              to="/menu"
+              className="flex items-center gap-3 rounded-xl bg-brand-surface border border-white/[0.06] p-2.5 hover:border-brand-gold/20 transition-all group"
+            >
+              <img
+                src={item.image_url}
+                alt={item.name}
+                className="w-11 h-11 rounded-lg object-cover shrink-0 group-hover:scale-105 transition-transform"
+              />
+              <div className="flex-1 min-w-0">
+                <p className="text-[13px] font-bold text-white truncate">{item.name}</p>
+                <p className="text-[12px] font-semibold text-brand-text-dim">{'\u20B9'}{item.price}</p>
+              </div>
+              <ArrowRight size={14} className="text-brand-text-dim group-hover:text-brand-gold shrink-0 transition-colors" />
+            </Link>
+          ))}
+        </div>
+      )}
+
+      <button
+        onClick={onViewMenu}
+        className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-brand-gold/10 border border-brand-gold/20 text-brand-gold text-[13px] font-bold hover:bg-brand-gold/15 transition-all"
+      >
+        View Full Menu
+        <ArrowRight size={14} />
+      </button>
     </div>
   );
 }

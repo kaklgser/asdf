@@ -42,6 +42,7 @@ export default {
         'pulse-soft': 'pulseSoft 2s ease-in-out infinite',
         'shimmer': 'shimmer 2s ease-in-out infinite',
         'marquee': 'marquee 25s linear infinite',
+        'confetti': 'confetti 3s ease-out forwards',
       },
       keyframes: {
         fadeIn: {
@@ -76,6 +77,10 @@ export default {
         marquee: {
           '0%': { transform: 'translateX(0)' },
           '100%': { transform: 'translateX(-50%)' },
+        },
+        confetti: {
+          '0%': { transform: 'translateY(0) rotate(0deg)', opacity: '1' },
+          '100%': { transform: 'translateY(400px) rotate(720deg)', opacity: '0' },
         },
       },
     },

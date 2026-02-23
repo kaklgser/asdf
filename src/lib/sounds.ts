@@ -97,6 +97,45 @@ export function playOrderCompleteSound() {
   } catch {}
 }
 
+export function playPickupReadyAlert() {
+  try {
+    const ctx = audioCtx();
+    const now = ctx.currentTime;
+
+    for (let r = 0; r < 5; r++) {
+      const offset = r * 1.0;
+
+      const osc1 = ctx.createOscillator();
+      const gain1 = ctx.createGain();
+      osc1.type = 'sine';
+      osc1.frequency.value = 880;
+      gain1.gain.setValueAtTime(0, now + offset);
+      gain1.gain.linearRampToValueAtTime(0.2, now + offset + 0.03);
+      gain1.gain.setValueAtTime(0.2, now + offset + 0.3);
+      gain1.gain.linearRampToValueAtTime(0, now + offset + 0.4);
+      osc1.connect(gain1);
+      gain1.connect(ctx.destination);
+      osc1.start(now + offset);
+      osc1.stop(now + offset + 0.45);
+
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      osc2.type = 'sine';
+      osc2.frequency.value = 1100;
+      gain2.gain.setValueAtTime(0, now + offset + 0.45);
+      gain2.gain.linearRampToValueAtTime(0.2, now + offset + 0.48);
+      gain2.gain.setValueAtTime(0.2, now + offset + 0.75);
+      gain2.gain.linearRampToValueAtTime(0, now + offset + 0.85);
+      osc2.connect(gain2);
+      gain2.connect(ctx.destination);
+      osc2.start(now + offset + 0.45);
+      osc2.stop(now + offset + 0.9);
+    }
+
+    setTimeout(() => ctx.close(), 6000);
+  } catch {}
+}
+
 export function playAcceptSound() {
   try {
     const ctx = audioCtx();

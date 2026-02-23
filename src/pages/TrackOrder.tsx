@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Search, Phone, MessageCircle, ArrowLeft, Package, Bell, PartyPopper, Clock, Truck, ChefHat, Users } from 'lucide-react';
+import { Search, Phone, MessageCircle, ArrowLeft, Package, Bell, PartyPopper, Clock, Truck, ChefHat, Users, Sparkles, ArrowRight, Star, CheckCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { playOrderCompleteSound } from '../lib/sounds';
-import type { Order, OrderItem } from '../types';
+import { playOrderCompleteSound, playPickupReadyAlert } from '../lib/sounds';
+import type { Order, OrderItem, MenuItem } from '../types';
 import OrderTimeline from '../components/OrderTimeline';
 
 function PrepCountdown({ confirmedAt, estimatedMinutes }: { confirmedAt: string; estimatedMinutes: number }) {
@@ -80,7 +80,9 @@ export default function TrackOrderPage() {
   const [searched, setSearched] = useState(false);
   const [showReadyBanner, setShowReadyBanner] = useState(false);
   const [queueAhead, setQueueAhead] = useState(0);
+  const [specials, setSpecials] = useState<MenuItem[]>([]);
   const prevStatusRef = useRef<string | null>(null);
+  const pickupAlertPlayedRef = useRef(false);
 
   useEffect(() => {
     if (paramOrderId) {
@@ -89,10 +91,18 @@ export default function TrackOrderPage() {
   }, [paramOrderId]);
 
   useEffect(() => {
+    loadSpecials();
+  }, []);
+
+  useEffect(() => {
     if (!order) return;
 
     if (order.order_type === 'pickup' && order.status === 'packed') {
       setShowReadyBanner(true);
+      if (!pickupAlertPlayedRef.current) {
+        pickupAlertPlayedRef.current = true;
+        playPickupReadyAlert();
+      }
     }
 
     if (order.status === 'pending') {
@@ -130,6 +140,16 @@ export default function TrackOrderPage() {
       .eq('status', 'pending')
       .lt('placed_at', order.placed_at);
     setQueueAhead(count || 0);
+  }
+
+  async function loadSpecials() {
+    const { data } = await supabase
+      .from('menu_items')
+      .select('*')
+      .eq('is_available', true)
+      .order('rating', { ascending: false })
+      .limit(6);
+    if (data) setSpecials(data);
   }
 
   async function fetchOrder(id: string) {
@@ -303,16 +323,24 @@ export default function TrackOrderPage() {
             )}
 
             {isDelivered && (
-              <div className="relative overflow-hidden rounded-2xl bg-emerald-500 p-6 text-center text-white shadow-elevated backdrop-blur">
-                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(255,255,255,0.12),transparent)]" />
+              <div className="relative overflow-hidden rounded-2xl p-6 text-center shadow-elevated">
+                <div className="absolute inset-0 bg-gradient-to-br from-brand-gold/10 to-brand-gold/[0.02] border border-brand-gold/20 rounded-2xl" />
                 <div className="relative">
-                  <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-white/20 backdrop-blur-sm">
-                    <PartyPopper size={32} />
+                  <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-brand-gold/15 border border-brand-gold/20">
+                    <CheckCircle size={32} className="text-brand-gold" />
                   </div>
-                  <h2 className="mb-2 text-2xl font-black">
-                    {order.order_type === 'pickup' ? 'Order Picked Up!' : 'Order Delivered!'}
+                  <h2 className="mb-2 text-2xl font-black text-white">
+                    {order.order_type === 'pickup' ? 'Enjoy Your Food!' : 'Order Delivered!'}
                   </h2>
-                  <p className="text-[14px] text-emerald-100">Enjoy your waffles!</p>
+                  <p className="text-[14px] text-brand-text-muted mb-3">
+                    {order.order_type === 'pickup'
+                      ? 'Thank you for dining with us. We hope you love every bite!'
+                      : 'Your waffles have arrived. Enjoy every bite!'}
+                  </p>
+                  <div className="inline-flex items-center gap-2 bg-brand-gold/10 border border-brand-gold/20 rounded-full px-4 py-2 text-brand-gold text-[13px] font-bold">
+                    <Star size={14} fill="currentColor" />
+                    We'd love to see you again soon!
+                  </div>
                 </div>
               </div>
             )}
@@ -389,6 +417,10 @@ export default function TrackOrderPage() {
               </div>
             )}
 
+            {(isDelivered || isReadyForPickup) && specials.length > 0 && (
+              <TrackPageSpecials items={specials} />
+            )}
+
             <div className="rounded-2xl border border-white/[0.06] bg-brand-surface p-6 transition-shadow duration-300">
               <h3 className="mb-4 text-[14px] font-bold uppercase tracking-wider text-white">
                 Need Help?
@@ -415,6 +447,75 @@ export default function TrackOrderPage() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function TrackPageSpecials({ items }: { items: MenuItem[] }) {
+  return (
+    <div className="rounded-2xl border border-brand-gold/15 bg-gradient-to-b from-brand-gold/[0.04] to-transparent p-5 text-left animate-fade-in">
+      <div className="flex items-center gap-2 mb-4">
+        <div className="w-8 h-8 bg-brand-gold/10 rounded-lg flex items-center justify-center">
+          <Sparkles size={16} className="text-brand-gold" />
+        </div>
+        <div>
+          <h3 className="text-[14px] font-bold text-white">Today's Top Picks</h3>
+          <p className="text-[12px] text-brand-text-dim font-medium">Craving more? Try these favorites</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2.5 mb-4">
+        {items.slice(0, 3).map((item) => (
+          <Link
+            key={item.id}
+            to="/menu"
+            className="group rounded-xl overflow-hidden border border-white/[0.06] bg-brand-surface hover:border-brand-gold/30 transition-all"
+          >
+            <div className="aspect-square overflow-hidden">
+              <img
+                src={item.image_url}
+                alt={item.name}
+                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+              />
+            </div>
+            <div className="p-2">
+              <p className="text-[11px] font-bold text-white truncate leading-tight">{item.name}</p>
+              <p className="text-[12px] font-extrabold text-brand-gold mt-0.5">{'\u20B9'}{item.price}</p>
+            </div>
+          </Link>
+        ))}
+      </div>
+
+      {items.length > 3 && (
+        <div className="space-y-2 mb-4">
+          {items.slice(3, 6).map((item) => (
+            <Link
+              key={item.id}
+              to="/menu"
+              className="flex items-center gap-3 rounded-xl bg-brand-surface border border-white/[0.06] p-2.5 hover:border-brand-gold/20 transition-all group"
+            >
+              <img
+                src={item.image_url}
+                alt={item.name}
+                className="w-11 h-11 rounded-lg object-cover shrink-0 group-hover:scale-105 transition-transform"
+              />
+              <div className="flex-1 min-w-0">
+                <p className="text-[13px] font-bold text-white truncate">{item.name}</p>
+                <p className="text-[12px] font-semibold text-brand-text-dim">{'\u20B9'}{item.price}</p>
+              </div>
+              <ArrowRight size={14} className="text-brand-text-dim group-hover:text-brand-gold shrink-0 transition-colors" />
+            </Link>
+          ))}
+        </div>
+      )}
+
+      <Link
+        to="/menu"
+        className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-brand-gold/10 border border-brand-gold/20 text-brand-gold text-[13px] font-bold hover:bg-brand-gold/15 transition-all"
+      >
+        View Full Menu
+        <ArrowRight size={14} />
+      </Link>
     </div>
   );
 }
