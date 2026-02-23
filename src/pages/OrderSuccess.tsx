@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { CheckCircle, Clock, Copy, RotateCcw, Store, Truck, ChefHat, Users, Bell, Sparkles, ArrowRight, Star } from 'lucide-react';
+import { CheckCircle, Clock, Copy, RotateCcw, Store, Truck, ChefHat, Users, Bell, Sparkles, ArrowRight, Star, Wallet, BadgeCheck } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { Order, MenuItem } from '../types';
 import { useToast } from '../components/Toast';
@@ -258,6 +258,17 @@ export default function OrderSuccessPage() {
             </div>
           )}
 
+          {order.payment_method === 'cod' && order.payment_status !== 'paid' && !isDelivered && !isExpired && (
+            <PaymentInstructionCard order={order} isPickup={isPickup} />
+          )}
+
+          {order.payment_status === 'paid' && (
+            <div className="mt-4 flex items-center justify-center gap-2 bg-emerald-500/10 rounded-2xl px-4 py-2.5 border border-emerald-500/20">
+              <BadgeCheck size={16} className="text-emerald-400" />
+              <span className="text-[13px] font-bold text-emerald-400">Payment Received</span>
+            </div>
+          )}
+
           <div className="mt-6 pt-4 border-t border-white/[0.06] text-[14px] text-brand-text-muted">
             <div className="flex justify-between mb-1">
               <span>Total</span>
@@ -448,6 +459,33 @@ function SpecialsSuggestions({ items, onViewMenu }: { items: MenuItem[]; onViewM
         View Full Menu
         <ArrowRight size={14} />
       </button>
+    </div>
+  );
+}
+
+function PaymentInstructionCard({ order, isPickup }: { order: Order; isPickup: boolean }) {
+  return (
+    <div className="mt-4 rounded-2xl border-2 border-brand-gold/30 bg-brand-gold/[0.04] p-4">
+      <div className="flex items-center gap-2 mb-3">
+        <div className="w-8 h-8 bg-brand-gold/15 rounded-lg flex items-center justify-center">
+          <Wallet size={16} className="text-brand-gold" />
+        </div>
+        <div>
+          <h4 className="text-[13px] font-bold text-white">
+            {isPickup ? 'Pay at Counter' : 'Cash on Delivery'}
+          </h4>
+          <p className="text-[11px] text-brand-text-dim">
+            {isPickup ? 'Show this order ID and pay at the counter' : 'Pay the delivery partner when your order arrives'}
+          </p>
+        </div>
+      </div>
+      <div className="bg-brand-bg/60 rounded-xl px-4 py-3 flex items-center justify-between">
+        <span className="text-[13px] text-brand-text-muted font-medium">Amount to Pay</span>
+        <span className="text-2xl font-black text-brand-gold tabular-nums">{'\u20B9'}{order.total}</span>
+      </div>
+      <p className="text-[11px] text-brand-text-dim mt-2.5 text-center">
+        {isPickup ? 'Cash or UPI accepted at the counter' : 'Please keep exact change ready'}
+      </p>
     </div>
   );
 }

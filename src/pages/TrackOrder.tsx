@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Search, Phone, MessageCircle, ArrowLeft, Package, Bell, PartyPopper, Clock, Truck, ChefHat, Users, Sparkles, ArrowRight, Star, CheckCircle } from 'lucide-react';
+import { Search, Phone, MessageCircle, ArrowLeft, Package, Bell, PartyPopper, Clock, Truck, ChefHat, Users, Sparkles, ArrowRight, Star, CheckCircle, Wallet, BadgeCheck } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { playOrderCompleteSound, playPickupReadyAlert } from '../lib/sounds';
 import type { Order, OrderItem, MenuItem } from '../types';
@@ -411,6 +411,20 @@ export default function TrackOrderPage() {
                     <span className="font-bold text-white">Total</span>
                     <span className="text-lg font-bold tabular-nums text-brand-gold">
                       {'\u20B9'}{order.total}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between pt-1">
+                    <span className="text-[13px] text-brand-text-dim">Payment</span>
+                    <span className={`inline-flex items-center gap-1.5 text-[13px] font-bold ${
+                      order.payment_status === 'paid' ? 'text-emerald-400' : 'text-brand-text-muted'
+                    }`}>
+                      {order.payment_status === 'paid'
+                        ? <><BadgeCheck size={14} /> Paid</>
+                        : <><Wallet size={14} /> {order.payment_method === 'cod'
+                            ? (order.order_type === 'pickup' ? 'Pay at Counter' : 'Cash on Delivery')
+                            : order.payment_method.toUpperCase()
+                          }</>
+                      }
                     </span>
                   </div>
                 </div>

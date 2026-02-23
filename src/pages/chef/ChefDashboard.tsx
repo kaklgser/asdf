@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ChefHat, LogOut, Clock, Check, Flame, Package, Users, Timer,
-  Store, Truck, Volume2, VolumeX, Bell, Zap,
+  Store, Truck, Volume2, VolumeX, Bell, Zap, Wallet, BadgeCheck,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { playNewOrderAlert, playAcceptSound, playOrderCompleteSound } from '../../lib/sounds';
@@ -115,6 +115,12 @@ export default function ChefDashboard() {
   async function markPickedUp(orderId: string) {
     await supabase.from('orders').update({
       status: 'delivered',
+    }).eq('id', orderId);
+  }
+
+  async function markPaymentCollected(orderId: string) {
+    await supabase.from('orders').update({
+      payment_status: 'paid',
     }).eq('id', orderId);
   }
 
@@ -298,7 +304,7 @@ export default function ChefDashboard() {
                 <span className="font-bold text-brand-gold text-lg tabular-nums">{'\u20B9'}{order.total}</span>
               </div>
 
-              <div className="flex items-center gap-2 mb-3 text-[12px]">
+              <div className="flex items-center gap-2 mb-3 text-[12px] flex-wrap">
                 <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg font-bold uppercase tracking-wider ${
                   order.order_type === 'pickup'
                     ? 'bg-brand-gold/10 text-brand-gold'
@@ -308,12 +314,47 @@ export default function ChefDashboard() {
                   {order.order_type === 'pickup' ? 'Pickup' : 'Delivery'}
                 </span>
                 <span className="text-brand-text-dim">{totalQty} item{totalQty !== 1 ? 's' : ''}</span>
-                <span className="text-brand-text-dim">
-                  {order.payment_method === 'cod'
-                    ? (order.order_type === 'pickup' ? 'Pay at Counter' : 'COD')
-                    : order.payment_method.toUpperCase()}
-                </span>
+                {order.payment_method === 'cod' ? (
+                  <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg font-bold ${
+                    order.payment_status === 'paid'
+                      ? 'bg-emerald-500/10 text-emerald-400'
+                      : 'bg-red-500/10 text-red-400'
+                  }`}>
+                    {order.payment_status === 'paid' ? <BadgeCheck size={12} /> : <Wallet size={12} />}
+                    {order.payment_status === 'paid'
+                      ? 'Paid'
+                      : order.order_type === 'pickup' ? 'Pay at Counter' : 'COD'}
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg font-bold bg-emerald-500/10 text-emerald-400">
+                    <BadgeCheck size={12} />
+                    {order.payment_method.toUpperCase()}
+                  </span>
+                )}
               </div>
+
+              {order.payment_method === 'cod' && order.payment_status !== 'paid' && (isQueue || isPreparing || isReady) && (
+                <div className="rounded-xl border-2 border-red-500/20 bg-red-500/5 p-3 mb-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Wallet size={16} className="text-red-400" />
+                      <div>
+                        <p className="text-[13px] font-bold text-red-400">Payment Pending</p>
+                        <p className="text-[11px] text-brand-text-dim">
+                          {order.order_type === 'pickup' ? 'Collect' : 'COD'} -- {'\u20B9'}{order.total}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => markPaymentCollected(order.id)}
+                      className="px-3 py-1.5 rounded-lg bg-emerald-500 text-white text-[12px] font-bold hover:bg-emerald-600 transition-colors active:scale-95 flex items-center gap-1"
+                    >
+                      <Check size={12} />
+                      Mark Paid
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {items.length > 0 ? (
                 <div className="space-y-2 mb-3">
