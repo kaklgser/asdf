@@ -361,7 +361,7 @@ export default function CartPage() {
           </div>
         </div>
 
-        <div className="fixed bottom-0 left-0 right-0 z-40 bg-brand-bg/95 backdrop-blur-sm border-t border-white/[0.06] px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))]">
+        <div className="fixed bottom-[64px] left-0 right-0 z-40 bg-brand-bg/95 backdrop-blur-sm border-t border-white/[0.06] px-4 py-3">
           <div className="max-w-lg mx-auto">
             <button
               onClick={handlePlaceOrder}
