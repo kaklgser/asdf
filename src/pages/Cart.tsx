@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Minus, Plus, Trash2, ShoppingBag, ArrowLeft, Tag, User, MapPin } from 'lucide-react';
+import { Minus, Plus, Trash2, ShoppingBag, ArrowLeft, Tag, User, MapPin, Store, Truck } from 'lucide-react';
 import { useCart } from '../contexts/CartContext';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -8,6 +8,31 @@ import type { DeliveryZone, OrderType, PaymentMethod, Offer } from '../types';
 import { useToast } from '../components/Toast';
 import LocationPicker from '../components/LocationPicker';
 import { playOrderSound } from '../lib/sounds';
+
+const STEPS = ['Cart', 'Details', 'Payment', 'Place Order'];
+
+function StepIndicator({ currentStep }: { currentStep: number }) {
+  return (
+    <div className="flex items-center justify-center gap-1 mb-6">
+      {STEPS.map((step, i) => (
+        <div key={step} className="flex items-center gap-1">
+          <span className={`text-[12px] font-bold ${
+            i <= currentStep ? 'text-brand-gold' : 'text-brand-text-dim'
+          }`}>
+            {step}
+          </span>
+          {i < STEPS.length - 1 && (
+            <span className={`text-[12px] mx-0.5 ${
+              i < currentStep ? 'text-brand-gold' : 'text-brand-text-dim'
+            }`}>
+              &rsaquo;
+            </span>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export default function CartPage() {
   const { items, subtotal, itemCount, removeItem, updateQuantity, clearCart } = useCart();
@@ -100,6 +125,10 @@ export default function CartPage() {
       : appliedOffer.discount_value
     : 0;
   const total = subtotal - discount + deliveryFee;
+
+  const hasDetails = name.trim() && phone.trim();
+  const hasAddress = orderType === 'pickup' || (address.trim() && pincode.trim() && deliveryZone);
+  const currentStep = !hasDetails ? 1 : !hasAddress ? 1 : paymentMethod ? 3 : 2;
 
   async function handlePlaceOrder() {
     if (!user) {
@@ -204,12 +233,25 @@ export default function CartPage() {
           Back to Menu
         </Link>
 
-        <h1 className="text-2xl font-extrabold tracking-tight text-white mb-6">
+        <h1 className="text-2xl font-extrabold tracking-tight text-white mb-2">
           Your Cart <span className="text-brand-text-dim font-semibold text-lg tabular-nums">({itemCount} items)</span>
         </h1>
 
+        <StepIndicator currentStep={currentStep} />
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-3">
+            <div className="flex items-center justify-between mb-1">
+              <OrderTypeBadge orderType={orderType} />
+              <Link
+                to="/menu"
+                className="flex items-center gap-1.5 text-[13px] font-bold text-brand-gold hover:text-brand-gold-soft transition-colors"
+              >
+                <Plus size={14} strokeWidth={2.5} />
+                Add more items
+              </Link>
+            </div>
+
             {items.map((item) => (
               <div
                 key={item.id}
@@ -222,16 +264,10 @@ export default function CartPage() {
                 />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-2">
-                    <div>
+                    <div className="min-w-0">
                       <h3 className="font-bold text-white text-[15px] leading-snug">{item.menu_item.name}</h3>
                       {item.customizations.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mt-1">
-                          {item.customizations.map((c, i) => (
-                            <span key={i} className="text-[12px] bg-white/[0.06] text-brand-text-dim px-1.5 py-0.5 rounded font-semibold">
-                              {c.option_name}
-                            </span>
-                          ))}
-                        </div>
+                        <CustomizationDetails customizations={item.customizations} />
                       )}
                     </div>
                     <button
@@ -289,23 +325,32 @@ export default function CartPage() {
             <div className="bg-brand-surface rounded-xl p-5 border border-white/[0.06]">
               <h3 className="font-bold text-white mb-3">Order Type</h3>
               <div className="grid grid-cols-2 gap-2">
-                {(['delivery', 'pickup'] as OrderType[]).map((type) => (
-                  <button
-                    key={type}
-                    onClick={() => setOrderType(type)}
-                    className={`py-2.5 rounded-lg text-[14px] font-semibold transition-all ${
-                      orderType === type
-                        ? 'bg-brand-gold text-brand-bg'
-                        : 'bg-brand-bg text-brand-text-muted border border-white/[0.06] hover:border-white/10'
-                    }`}
-                  >
-                    {type === 'delivery' ? 'Delivery' : 'Pickup'}
-                  </button>
-                ))}
+                <button
+                  onClick={() => setOrderType('delivery')}
+                  className={`flex items-center justify-center gap-2 py-3 rounded-lg text-[14px] font-semibold transition-all ${
+                    orderType === 'delivery'
+                      ? 'bg-brand-gold text-brand-bg'
+                      : 'bg-brand-bg text-brand-text-muted border border-white/[0.06] hover:border-white/10'
+                  }`}
+                >
+                  <Truck size={16} strokeWidth={2.2} />
+                  Home Delivery
+                </button>
+                <button
+                  onClick={() => setOrderType('pickup')}
+                  className={`flex items-center justify-center gap-2 py-3 rounded-lg text-[14px] font-semibold transition-all ${
+                    orderType === 'pickup'
+                      ? 'bg-brand-gold text-brand-bg'
+                      : 'bg-brand-bg text-brand-text-muted border border-white/[0.06] hover:border-white/10'
+                  }`}
+                >
+                  <Store size={16} strokeWidth={2.2} />
+                  Collect at Shop
+                </button>
               </div>
               {orderType === 'pickup' && (
                 <p className="text-[13px] text-brand-text-dim mt-3 bg-brand-bg rounded-lg px-3 py-2.5 leading-relaxed">
-                  Order ahead and we will notify you when your order is ready for pickup.
+                  Order ahead and we'll notify you when ready for pickup.
                 </p>
               )}
             </div>
@@ -346,23 +391,26 @@ export default function CartPage() {
               <h3 className="font-bold text-white mb-3">Payment Method</h3>
               <div className="space-y-2">
                 {([
-                  { value: 'cod', label: orderType === 'pickup' ? 'Pay at Counter' : 'Cash on Delivery' },
-                  { value: 'upi', label: 'UPI' },
-                  { value: 'card', label: 'Card' },
-                ] as { value: PaymentMethod; label: string }[]).map((pm) => (
+                  { value: 'cod' as PaymentMethod, label: orderType === 'pickup' ? 'Pay at Counter' : 'Cash on Delivery', desc: orderType === 'pickup' ? 'Pay when you collect your order' : 'Pay cash when order arrives' },
+                  { value: 'upi' as PaymentMethod, label: 'UPI', desc: 'Pay using any UPI app' },
+                  { value: 'card' as PaymentMethod, label: 'Card', desc: 'Credit or debit card' },
+                ]).map((pm) => (
                   <button
                     key={pm.value}
                     onClick={() => setPaymentMethod(pm.value)}
-                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg border transition-all ${
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg border transition-all text-left ${
                       paymentMethod === pm.value
                         ? 'border-brand-gold bg-brand-gold/10'
                         : 'border-white/[0.06] hover:border-white/10'
                     }`}
                   >
-                    <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${paymentMethod === pm.value ? 'border-brand-gold bg-brand-gold' : 'border-brand-text-dim'}`}>
+                    <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${paymentMethod === pm.value ? 'border-brand-gold bg-brand-gold' : 'border-brand-text-dim'}`}>
                       {paymentMethod === pm.value && <div className="w-full h-full rounded-full bg-brand-bg scale-[0.4]" />}
                     </div>
-                    <span className="text-[14px] font-semibold text-white">{pm.label}</span>
+                    <div>
+                      <span className="text-[14px] font-semibold text-white block">{pm.label}</span>
+                      <span className="text-[12px] text-brand-text-dim">{pm.desc}</span>
+                    </div>
                   </button>
                 ))}
               </div>
@@ -432,6 +480,38 @@ export default function CartPage() {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function OrderTypeBadge({ orderType }: { orderType: OrderType }) {
+  return (
+    <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-bold ${
+      orderType === 'pickup'
+        ? 'bg-brand-gold/10 text-brand-gold border border-brand-gold/20'
+        : 'bg-sky-500/10 text-sky-400 border border-sky-500/20'
+    }`}>
+      {orderType === 'pickup' ? <Store size={12} strokeWidth={2.5} /> : <Truck size={12} strokeWidth={2.5} />}
+      {orderType === 'pickup' ? 'Pickup' : 'Delivery'}
+    </div>
+  );
+}
+
+function CustomizationDetails({ customizations }: { customizations: { group_name: string; option_name: string; price: number }[] }) {
+  const grouped: Record<string, string[]> = {};
+  for (const c of customizations) {
+    if (!grouped[c.group_name]) grouped[c.group_name] = [];
+    grouped[c.group_name].push(c.option_name);
+  }
+
+  return (
+    <div className="mt-1.5 space-y-0.5">
+      {Object.entries(grouped).map(([group, options]) => (
+        <p key={group} className="text-[12px] text-brand-text-dim leading-snug">
+          <span className="text-brand-text-muted font-medium">{group}:</span>{' '}
+          {options.join(', ')}
+        </p>
+      ))}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { ShoppingBag } from 'lucide-react';
+import { ShoppingBag, ChevronRight } from 'lucide-react';
 import { useCart } from '../contexts/CartContext';
 
 export default function FloatingCart() {
@@ -17,18 +17,30 @@ export default function FloatingCart() {
   return (
     <Link
       to="/cart"
-      className="fixed bottom-[76px] right-4 z-40 animate-scale-in"
+      className="fixed bottom-[76px] left-4 right-4 z-40 animate-slide-up max-w-lg mx-auto"
     >
-      <div className="bg-brand-gold text-brand-bg rounded-full w-[56px] h-[56px] flex items-center justify-center shadow-glow-gold hover:brightness-110 active:scale-95 transition-all relative">
-        <ShoppingBag size={24} strokeWidth={2.5} />
-        <span className="absolute -top-1.5 -right-1.5 w-6 h-6 bg-white text-brand-bg text-[12px] font-extrabold rounded-full flex items-center justify-center shadow-md">
-          {itemCount}
-        </span>
-      </div>
-      <div className="text-center mt-1">
-        <span className="text-[12px] font-bold text-brand-gold">
-          {'\u20B9'}{subtotal}
-        </span>
+      <div className="bg-brand-gold rounded-2xl px-5 py-3.5 flex items-center justify-between shadow-glow-gold hover:brightness-110 active:scale-[0.98] transition-all">
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <ShoppingBag size={20} strokeWidth={2.5} className="text-brand-bg" />
+            <span className="absolute -top-2 -right-2.5 w-5 h-5 bg-brand-bg text-brand-gold text-[11px] font-extrabold rounded-full flex items-center justify-center">
+              {itemCount}
+            </span>
+          </div>
+          <div className="text-brand-bg">
+            <span className="text-[14px] font-extrabold">
+              {itemCount} {itemCount === 1 ? 'item' : 'items'}
+            </span>
+            <span className="mx-2 text-brand-bg/50">|</span>
+            <span className="text-[14px] font-extrabold tabular-nums">
+              {'\u20B9'}{subtotal}
+            </span>
+          </div>
+        </div>
+        <div className="flex items-center gap-1 text-brand-bg">
+          <span className="text-[13px] font-bold">View Cart</span>
+          <ChevronRight size={16} strokeWidth={2.5} />
+        </div>
       </div>
     </Link>
   );
