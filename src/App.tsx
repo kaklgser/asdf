@@ -25,6 +25,7 @@ import AdminOffers from './pages/admin/AdminOffers';
 import AdminMessages from './pages/admin/AdminMessages';
 import ChefLogin from './pages/chef/ChefLogin';
 import ChefDashboard from './pages/chef/ChefDashboard';
+import ComingSoon from './components/ComingSoon';
 import type { ReactNode } from 'react';
 
 function LoadingSpinner() {
@@ -94,17 +95,8 @@ export default function App() {
                 <Route path="messages" element={<AdminMessages />} />
               </Route>
 
-              <Route path="/" element={<CustomerLayout><Home /></CustomerLayout>} />
-              <Route path="/menu" element={<CustomerLayout><Menu /></CustomerLayout>} />
-              <Route path="/cart" element={<CustomerLayout><Cart /></CustomerLayout>} />
-              <Route path="/order-success/:orderId" element={<CustomerLayout><OrderSuccess /></CustomerLayout>} />
-              <Route path="/track" element={<CustomerLayout><TrackOrder /></CustomerLayout>} />
-              <Route path="/track/:orderId" element={<CustomerLayout><TrackOrder /></CustomerLayout>} />
-              <Route path="/about" element={<CustomerLayout><About /></CustomerLayout>} />
-              <Route path="/auth" element={<AuthPage />} />
-              <Route path="/profile" element={<CustomerLayout><Profile /></CustomerLayout>} />
-              <Route path="/my-orders" element={<CustomerLayout><MyOrders /></CustomerLayout>} />
-              <Route path="*" element={<Navigate to="/" replace />} />
+              <Route path="/" element={<ComingSoon />} />
+              <Route path="*" element={<ComingSoon />} />
             </Routes>
           </ToastProvider>
         </CartProvider>
